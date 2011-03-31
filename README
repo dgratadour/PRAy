@@ -1,0 +1,4 @@
+This is PRAy : The Phase Retrieval Algorithm in Yorick
+to launch the application, setup a PRAYTOP env variable to this directory 
+(ex if using bash export PRAYTOP=`pwd`)
+then just type yorick -i yorick/pray_gemini.i
