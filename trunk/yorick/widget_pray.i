@@ -322,7 +322,7 @@ func pray_file_load(filename,images=) {
       pyk_pray,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Please load another file");
     }
   }    
-  pray_setcuts;
+  if (pray_gui) pray_setcuts;
 }
 
 func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_object,pup_params,mir_params,script=)
