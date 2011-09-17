@@ -13,10 +13,10 @@ TGT=$(DEFAULT_TGT)
 
 # ------------------------------------------------ macros for this package
 
-PKG_NAME=pray_core
-PKG_I=pray_core.i
+PKG_NAME=pray_utils
+PKG_I=pray_utils.i
 
-OBJS=pray.o
+OBJS=pray_utils.o
 
 # change to give the executable a name other than yorick
 PKG_EXENAME=yorick

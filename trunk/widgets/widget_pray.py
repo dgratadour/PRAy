@@ -8,7 +8,9 @@ import sys
 import time
 import os, fcntl, errno
 
-praytop = os.environ['PRAYTOP']
+praytop = os.getenv('PRAYTOP',os.getenv('STYCTOP',0))
+if praytop==0:
+   praytop=os.environ['PRAYTOP']
 
 class widget_pray:
 
@@ -26,7 +28,7 @@ class widget_pray:
       
       self.path=path
       
-      self.gladefile = 'widget_pray_gemini.glade'
+      self.gladefile = 'widget_pray.glade'
       
       self.glade = gtk.glade.XML(os.path.join(path,self.gladefile), root='top')
       self.top = self.glade.get_widget('top')
@@ -57,7 +59,11 @@ class widget_pray:
       self.glade.get_widget('winselect_pray_target').hide()
       self.glade.get_widget('expander1').hide()
       self.glade.get_widget('check_starpos').hide()
+      self.glade.get_widget('table_ppars').hide()
+      self.glade.get_widget('vbox_mpars').hide()
       self.glade.get_widget('check_starpos').set_active(0)
+      self.glade.get_widget('filt_quads').hide()
+      self.glade.get_widget('filt_quads').set_active(0)
 
    ######################################################
    # THIS IS WHERE YOU PLACE METHODS ASSOCIATED TO GLADE
@@ -135,8 +141,8 @@ class widget_pray:
       self.py2yo('pray_set_starpos %d %d' % (ptype,nstars))
 
    def on_getcoeffs_clicked(self,wdg):
-      self.glade.get_widget('getcoeffs').hide()
-      self.glade.get_widget('stop').show()
+      #self.glade.get_widget('getcoeffs').hide()
+      #self.glade.get_widget('stop').show()
 
       ndefoc = self.glade.get_widget('spin_defocpos').get_value()
       if (ndefoc == 1):
@@ -190,10 +196,27 @@ class widget_pray:
       diff_tt = self.glade.get_widget('check_difftt').get_active()
       fit_starpos = self.glade.get_widget('check_starpos').get_active()
       fit_obj = self.glade.get_widget('fit_object').get_active()
-      if (on3d == 1):
-         self.py2yo('start_pray %d "%s" "%s" %d "%s" "%s" %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d' % (nstars,starposx,starposy,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj))
+
+      pup_map = self.glade.get_widget('pup_map').get_active()
+      if (pup_map == 1):  
+         pup_params = []
+         for i in range(7):
+            pup_params.append(self.glade.get_widget('ppars%d' % (i+1)).get_text())
       else:
-         self.py2yo('start_pray %d %f %f %d %f %d %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d' % (1,0.,0.,1,0.,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj))
+         pup_params = "0"
+
+      mir_map = self.glade.get_widget('mir_map').get_active()
+      if (mir_map == 1):  
+         mir_params = []
+         for i in range(4):
+            mir_params.append(self.glade.get_widget('mpars%d' % (i+1)).get_text())
+      else:
+         mir_params = "0"
+
+      if (on3d == 1):
+         self.py2yo('start_pray %d "%s" "%s" %d "%s" "%s" %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d "%s" "%s"' % (nstars,starposx,starposy,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj,pup_params,mir_params))
+      else:
+         self.py2yo('start_pray %d %f %f %d %f %d %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d "%s" "%s"' % (1,0.,0.,1,0.,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj,pup_params,mir_params))
 
    def on_create_button_clicked(self,wdg):
       ndefoc = self.glade.get_widget('spin_defocpos').get_value()
@@ -244,12 +267,26 @@ class widget_pray:
       fit_starpos = self.glade.get_widget('check_starpos').get_active()
       fit_obj = self.glade.get_widget('fit_object').get_active()
 
-      if (on3d == 1): 
-         self.py2yo('pray_create %d "%s" "%s" %d "%s" "%s" %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d' % (nstars,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj))
+      pup_map = self.glade.get_widget('pup_map').get_active()
+      if (pup_map == 1):  
+         pup_params = []
+         for i in range(7):
+            pup_params.append(self.glade.get_widget('ppars%d' % (i+1)).get_text())
       else:
-         self.py2yo('pray_create %d %f %f %d %f %d %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d' % (1,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj))
+         pup_params = "0"
 
+      mir_map = self.glade.get_widget('mir_map').get_active()
+      if (mir_map == 1):  
+         mir_params = []
+         for i in range(4):
+            mir_params.append(self.glade.get_widget('mpars%d' % (i+1)).get_text())
+      else:
+         mir_params = "0"
 
+      if (on3d == 1): 
+         self.py2yo('pray_create %d "%s" "%s" %d "%s" "%s" %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d "%s" "%s"' % (nstars,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj,pup_params,mir_params))
+      else:
+         self.py2yo('pray_create %d %f %f %d %f %d %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d "%s" "%s"' % (1,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj,pup_params,mir_params))
 
 
    def on_stop_clicked(self,wdg):
@@ -260,7 +297,7 @@ class widget_pray:
 
    def y_on_loop_finished(self):
       self.glade.get_widget('getcoeffs').show()
-      self.glade.get_widget('stop').hide()
+      #self.glade.get_widget('stop').hide()
       
    def y_get_selected_disp(self,myflag):
       val = self.glade.get_widget('winselect_pray_disp').get_active_text()
@@ -378,11 +415,29 @@ class widget_pray:
          self.glade.get_widget('expander1').show()
          self.glade.get_widget('check_starpos').show()
          self.glade.get_widget('check_starpos').set_active(0)
+         self.glade.get_widget('filt_quads').show()
+         self.glade.get_widget('filt_quads').set_active(0)
       else:
          self.glade.get_widget('winselect_pray_target').hide()
          self.glade.get_widget('expander1').hide()
          self.glade.get_widget('check_starpos').hide()
          self.glade.get_widget('check_starpos').set_active(0)
+         self.glade.get_widget('filt_quads').hide()
+         self.glade.get_widget('filt_quads').set_active(0)
+
+   def on_pup_map_toggled(self,wdg):
+      pup_map = self.glade.get_widget('pup_map').get_active()
+      if (pup_map == 1):
+         self.glade.get_widget('table_ppars').show()
+      else:
+         self.glade.get_widget('table_ppars').hide()
+
+   def on_mir_map_toggled(self,wdg):
+      mir_map = self.glade.get_widget('mir_map').get_active()
+      if (mir_map == 1):
+         self.glade.get_widget('vbox_mpars').show()
+      else:
+         self.glade.get_widget('vbox_mpars').hide()
 
    ###################################################
    # END OF GLADE RELATED METHOD DEFINITION

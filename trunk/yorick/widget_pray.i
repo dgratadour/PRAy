@@ -7,26 +7,6 @@
   Generic routines should be written in styc_utils.i file
 */
 
-
-
-// Environment check
-praytop = get_env("PRAYTOP");
-if (!praytop) error,"PRAYTOP is not defined!";
-
-// load necessary files : yorick-python wrapper and styc_utils
-require,praytop+"/yorick/pyk.i";
-require,praytop+"/yorick/pray_utils.i";
-require,praytop+"/yorick/pray_core.i";
-
-require,praytop+"/OptimPack-1.3.2/yorick/lbfgsb.i";
-require,praytop+"/OptimPack-1.3.2/yorick/OptimPack1.i";
-
-//require,praytop+"/yorick/optimpack-mod.i";
-
-require,praytop+"/yorick/kl.i";
-
-yao_fitsread = fits_read;
-
 //////////////////////////////////////////////////////////
 //              **********************                 //
 //////    THIS IS WHERE YOU DEFINE YOUR ROUTINES   ///////
@@ -152,6 +132,29 @@ func pray_set_starpos(type,nstars)
     pyk_pray,swrite(format=cmd_pray+"glade.get_widget('spin_stars').set_value(%f)",19.);
 
   }
+
+  if (type == 2) {
+    aposx= [45.,0.,-45.,0.];
+    aposy = [0.,45.,0.,-45.];
+    for (cc=1;cc<=numberof(aposx);cc++) {
+      pyk_pray,swrite(format=cmd_pray+"glade.get_widget('starx%d').set_text('%s')",cc,swrite(format="%f",float(aposx(cc))));
+      pyk_pray,swrite(format=cmd_pray+"glade.get_widget('stary%d').set_text('%s')",cc,swrite(format="%f",float(aposy(cc))));
+    }
+    pyk_pray,swrite(format=cmd_pray+"glade.get_widget('spin_stars').set_value(%f)",float(numberof(aposx)));
+
+  }
+
+  if (type == 3) {
+    aposx= [45.,31.8198,0.,-31.8198,-45.,-31.8198,0.,31.8198];
+    aposy = [0.,31.8198,45.,31.8198,0.,-31.8198,-45.,-31.8198];
+    for (cc=1;cc<=numberof(aposx);cc++) {
+      pyk_pray,swrite(format=cmd_pray+"glade.get_widget('starx%d').set_text('%s')",cc,swrite(format="%f",aposx(cc)));
+      pyk_pray,swrite(format=cmd_pray+"glade.get_widget('stary%d').set_text('%s')",cc,swrite(format="%f",aposy(cc)));
+    }
+    pyk_pray,swrite(format=cmd_pray+"glade.get_widget('spin_stars').set_value(%f)",float(numberof(aposx)));
+
+  }
+  
 }
 
 
@@ -217,7 +220,7 @@ func pray_file_load(filename,images=) {
     }
     
     pyk_pray,swrite(format=cmd_pray+"glade.get_widget('winselect_pray_disp').set_active(%d)",0);
-    pyk_pray,swrite(format=cmd_pray+"glade.get_widget('combo_modetype').set_active(%d)",0);
+    //pyk_pray,swrite(format=cmd_pray+"glade.get_widget('combo_modetype').set_active(%d)",0);
     pyk_pray,swrite(format=cmd_pray+"glade.get_widget('combo_objtype').set_active(%d)",1);
     pyk_pray,swrite(format=cmd_pray+"glade.get_widget('getcoeffs').set_sensitive(%d)",1);
 
@@ -322,7 +325,7 @@ func pray_file_load(filename,images=) {
   pray_setcuts;
 }
 
-func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_object,script=)
+func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_object,pup_params,mir_params,script=)
 {
   extern pray_buffer,pray_buffer_data;
   
@@ -452,19 +455,36 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
 
   if (useguess) myguess = pray_param;
   
+  // checking if there are a pupil map parameters
+  if (pup_params != "0") {
+    dx=strtok(pup_params,"'",2*7);
+    pupp = array(float,7);
+    for (rr=1;rr<=7;rr++) {
+      sread,dx(2*rr),pupp(rr);
+    }    
+  } else pupp = [];
+
+  if (mir_params != "0") {
+    dx=strtok(mir_params,"'",2*4);
+    mirp = array(float,4);
+    for (rr=1;rr<=4;rr++) {
+      sread,dx(2*rr),mirp(rr);
+    }    
+  } else mirp = [];
+
   if (scalar) res = pray(images,xpos,ypos,deltaFoc,sqrt(var),object,lambda_im,nzer=nzer,alt=alt,
                          teldiam=teldiam,cobs=cobs,osampl=os,nbiter=nbiter,tmodes=tmodes,tiptilt=tiptilt,
                          threshold=threshold,disp=disp,guess=myguess,scale=scale,diff_tt=diff_tt,
-                         fit_starpos=fit_starpos,fit_object=fit_object,script=script);
+                         fit_starpos=fit_starpos,fit_object=fit_object,script=script,pup_params=pupp,mir_params=mirp);
   else {
     res = pray(images,xpos,ypos,deltaFoc,sqrt(var),object,lambda_im,nzer=nzer,alt=alt,
                teldiam=teldiam,cobs=cobs,osampl=os,nbiter=nbiter,tmodes=tmodes,tiptilt=tiptilt,
                threshold=threshold,disp=disp,variance=variance2,guess=myguess,scale=scale,diff_tt=diff_tt,
-               fit_starpos=fit_starpos,fit_object=fit_object,script=script);
+               fit_starpos=fit_starpos,fit_object=fit_object,script=script,pup_params=pupp,mir_params=mirp);
   }
 }
 
-func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_object)
+func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_object,pup_params,mir_params)
 {
   extern pray_data,pray_mircube;
   if (pray_gui) 
@@ -545,6 +565,19 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   obj_nphe = 1.e5;
   var = obj_nphe/(10.^snr);
       
+  // checking if there are a pupil map parameters
+  if (pup_params != "0") {
+    dx=strtok(pup_params,"'",2*7);
+    tmp = array(float,7);
+    for (rr=1;rr<=7;rr++) {
+      sread,dx(2*rr),tmp(rr);
+    }    
+    a = _(pupd,size/2+0.5,size/2+0.5,tmp);
+    cobs = tmp(1);
+    tmp = pup_model(size,a);
+    pupmap = tmp/max(tmp);
+  } else pupmap = [];
+
   pray_data             = pray_struct();
   pray_data.teldiam     = teldiam;
   pray_data.cobs        = cobs;
@@ -556,16 +589,29 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   pray_data.fit_starpos = fit_starpos;
   pray_data.fit_object  = fit_object;
     
+  if (mir_params != "0") {
+    dx=strtok(mir_params,"'",2*4);
+    mirp = array(float,4);
+    for (rr=1;rr<=4;rr++) {
+      sread,dx(2*rr),mirp(rr);
+    }    
+  } else mirp = [];
+
   // pray init
-  pray_init,xpos,ypos,tmodes=tmodes;
+  pray_init,xpos,ypos,tmodes=tmodes,mir_params=mirp;
   // create psfs
-  modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
-  //remove tt
-  modes_coeff(1:2) = 0.;
-  // this are the mode coefficients
-  if (nlayers > 1)
-    for (i=2;i<=nlayers;i++) modes_coeff=_(modes_coeff,_(0.,0.,0.,0.,0.,7.*gaussdev(nzer(i)-5)/((indgen(nzer(i)-5)+5)^2))(*));
-  modes_coeff = modes_coeff(*);
+  if (tmodes == 2) {
+    modes_coeff = _(0.,0.,gaussdev(53)/2.)(*);
+  } else {
+    modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
+    //remove tt
+    modes_coeff(1:2) = 0.;
+    // this are the mode coefficients
+    if (nlayers > 1)
+      for (i=2;i<=nlayers;i++) modes_coeff=_(modes_coeff,7.*gaussdev(nzer(i))/((indgen(nzer(i))+5)^2))(*);
+    modes_coeff = modes_coeff(*);
+  }
+  
   if (fit_starpos) coeff = _(0.1,modes_coeff(3:)); // remove tt coeffs
   else coeff = _(modes_coeff(1:2),0.1,modes_coeff(3:)); // add focus term
   // check if we want diff_tt and starpos
@@ -578,8 +624,8 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
     mystr = "Adding diff TT to out of focus images";
     for (i=1;i<=2*ndefoc;i++) grow,mystr,swrite(format=" %.4f",diff_coeff(i));
     if (!pray_gui) write,mystr;
-    //coeff = _(diff_coeff,coeff);
-    //here we don't include it because we just run pray_coeff2psfs
+      //coeff = _(diff_coeff,coeff);
+      //here we don't include it because we just run pray_coeff2psfs
   }
   if (scale) {
     scale_coeff = random(1)/5.+1.;
@@ -621,7 +667,7 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   
   if (ntarget == 1) {
     psf_tab = array(float,[3,size,size,ndefoc+1]);
-    psf_tab(,,1) = pray_coeff2psfs(coeff,amp3,amp4);
+    psf_tab(,,1) = pray_coeff2psfs(coeff,amp3,amp4,pupmap=pupmap);
     pray_mircube = *pray_data.mircube;
     defoc_orig = coeff(3);
     for(cc=2;cc<=ndefoc+1;cc++) {
@@ -630,12 +676,12 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
       if (diff_tt) {
         coeff2 = coeff;
         coeff2(1:2) += diff_coeff(2*(cc-1)-1:2*(cc-1));
-        psf_tab(,,cc) = pray_coeff2psfs(coeff2,amp3,amp4);
-      } else psf_tab(,,cc) = pray_coeff2psfs(coeff,amp3,amp4);
+        psf_tab(,,cc) = pray_coeff2psfs(coeff2,amp3,amp4,pupmap=pupmap);
+      } else psf_tab(,,cc) = pray_coeff2psfs(coeff,amp3,amp4,pupmap=pupmap);
     }
   } else {
     psf_tab = array(float,[4,size,size,ntarget,ndefoc+1]);
-    psf_tab(,,,1) = pray_coeff2psfs(coeff,amp3,amp4);
+    psf_tab(,,,1) = pray_coeff2psfs(coeff,amp3,amp4,pupmap=pupmap);
     pray_mircube = *pray_data.mircube;
     if (fit_starpos) defoc_orig = coeff(2*ntarget+1);
     else defoc_orig = coeff(3);
@@ -650,8 +696,8 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
       if (diff_tt) {
         coeff2 = coeff;
         coeff2(1:2) += diff_coeff(2*(cc-1)-1:2*(cc-1));
-        psf_tab(,,,cc) = pray_coeff2psfs(coeff2,amp3,amp4);
-      } else psf_tab(,,,cc) = pray_coeff2psfs(coeff,amp3,amp4);
+        psf_tab(,,,cc) = pray_coeff2psfs(coeff2,amp3,amp4,pupmap=pupmap);
+      } else psf_tab(,,,cc) = pray_coeff2psfs(coeff,amp3,amp4,pupmap=pupmap);
     }
   }
    
@@ -749,7 +795,7 @@ func pray_disp_error(ndisp)
     if (pray_selected_error == 1) tmptlt = "Error on Foc";
     else tmptlt = swrite(format="Error on deFoc %d",pray_selected_error-1);
   }
-  styc_pltitle,tmptlt,defaultdpi=pray_defaultdpi;
+  pray_pltitle,tmptlt,defaultdpi=pray_defaultdpi;
   colorbar,adjust=-0.024,levs=10;
 }
 
@@ -891,7 +937,7 @@ func pray_disp(void)
   for (i=1;i<=2;i++) {
     if (pray_itt==5) {
       if (nallof(pray_imdnum==[2,pray_itt]))     \
-        pray_imd(,,i) = styc_histeq_scale(pray_im(,,i));
+        pray_imd(,,i) = pray_histeq_scale(pray_im(,,i));
     } else pray_imd(,,i) = bytscl(pray_im(,,i),cmin=pray_cmin,cmax=pray_cmax);
 
     window,pray_wins(i);
@@ -905,8 +951,8 @@ func pray_disp(void)
 
     axtit = "pixels";
     
-    styc_pltitle,pray_name(i),defaultdpi=pray_defaultdpi;
-    styc_xytitles,axtit,axtit,defaultdpi=pray_defaultdpi;
+    pray_pltitle,pray_name(i),defaultdpi=pray_defaultdpi;
+    pray_xytitles,axtit,axtit,defaultdpi=pray_defaultdpi;
     colorbar,adjust=-0.024,levs=10;
   }
   
@@ -1054,7 +1100,7 @@ func pray_quit
 {
   extern always_busy;
   
-  if (anyof(strmatch(arg_stats,"widget_slodar.i")) || get_env("EMACS")=="t") {
+  if (anyof(strmatch(arg_stats,"widget_slodar.i"))) {
     quit;
   } else {
     always_busy = 0;
@@ -1063,34 +1109,6 @@ func pray_quit
   }
 }
 
-// start standalone version if called from shell  
-arg_pray = get_argv();
-cmd_pray = "pray.";
-
-if (anyof(strmatch(arg_pray,"widget_pray.i")) || get_env("EMACS")=="t" ) {
-  cmd_pray = "";
-  python_exec = praytop+"/widgets/widget_pray.py";
-  pyk_cmd=[python_exec];
-  if (!_pyk_proc) _pyk_proc = spawn(pyk_cmd, _pyk_callback);
-  write,"widget_pray  ready";
-  write,"standalone version";
-}
-
-pray_wins = [37,38,39];
-pray_defaultdpi = 50;    // change size of spydr graphic area
-pray_itt        = 1;     // default ITT [1=lin,2=sqrt,3=square,4=log]
-pray_ncolors    = 200;
-pray_lut        = 0;     // default LUT index [0-41]
-pray_xytitles_adjust = [0.012,0.019]; // X and Y notch axis titles in main area
-pray_invertlut  = 0;
-pldefault,opaque=1,marks=1;
-pray_ndefoc = 0;
-pray_log_itt_dex = 3;
-pray_gui_realized = 0;
-pray_zoom = 1;
-pray_buffer_data=[];
-pray_sizeimage = 100;
-pray_gui = 1;
 
 //22 24;
 //23 27

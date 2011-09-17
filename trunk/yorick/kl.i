@@ -22,7 +22,6 @@
 */
 
 require,"digit2.i";
-require,"pray_core.i";
 
 func dblindgen(n)
  /*DOCUMENT res=dblindgen(size)

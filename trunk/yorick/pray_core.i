@@ -22,9 +22,6 @@
  *
  * Initial release D. Gratadour, Aug 2009.
  */
-require,"yaodh.i";
-
-plug_in,"pray_core";
 
 struct pray_struct
 {
@@ -45,6 +42,7 @@ struct pray_struct
   pointer yshifts;
   pointer deltaFoc;
   pointer poffset;
+  pointer pupmap;
   float   teldiam;
   float   cobs;
   float   threshold;
@@ -62,357 +60,9 @@ struct pray_struct
   long    fit_starpos;
   long    diff_tt;
   long    fit_object;
+  long    filt_quad;
 };
 
-/*
- _____                     __   __ _    ___  
-|  ___| __ ___  _ __ ___   \ \ / // \  / _ \ 
-| |_ | '__/ _ \| '_ ` _ \   \ V // _ \| | | |
-|  _|| | | (_) | | | | | |   | |/ ___ \ |_| |
-|_|  |_|  \___/|_| |_| |_|   |_/_/   \_\___/ 
-                                            
-
-the following routines have been copy-paste from yao
-*/
-
-extern _get2dPhase
-/* PROTOTYPE
-   int _get2dPhase(pointer pscreens, int psnx, int psny, int nscreens, pointer outphase, int phnx, int phny, pointer ishifts, pointer xshifts, pointer jshifts, pointer yshifts)
-*/
-
-//----------------------------------------------------
-
-func make_pupil(dim,pupd,xc=,yc=,real=,cobs=)
-
-  /* DOCUMENT func make_pupil(dim,pupd,xc=,yc=,real=)
-   */
-{
-  if (real == 1) {
-    pup = exp(-(mydist(dim,xc=xc,yc=yc)/(pupd/2.))^60.)^0.69314;
-  } else {
-    //    xc;yc;info,xc;
-    //    tv,dist(dim,xc=xc,yc=yc);pause,2000;
-    pup = mydist(dim,xc=xc,yc=yc) < (pupd+1.)/2.;
-  }
-  if (cobs!=[]) {
-    if (real == 1) {
-      pup -= exp(-(mydist(dim,xc=xc,yc=yc)/(pupd*cobs/2.))^60.)^0.69314;
-    } else {
-      pup -= mydist(dim,xc=xc,yc=yc) < (pupd*cobs+1.)/2.;
-    }
-  }
-    
-  return pup;
-}
-
-extern _dist
-/* PROTOTYPE
-   int _dist(pointer dptr, long dimx, long dimy, float xc, float yc)
-*/
-
-func mydist(dim,xc=,yc=)
-/* DOCUMENT func dist(dim,xc=,yc=)
- * Return an array which elements are the distance to (xc,yc). xc and
- * yc can be omitted, in which case they are defaulted to size/2+1.
- * F.Rigaut, 2003/12/10.
- * SEE ALSO:
-*/
-
-{
-  dim = long(dim);
-
-  if (is_scalar(dim)) dim=[2,dim,dim];
-  if ((is_vector(dim)) && (dim(1)!=2))
-    error,"Dist only deals with 2D square arrays";
-
-  d = array(float,dim);
-
-  if (xc!=[]) {xc = float(xc-1.);} else {xc = float(dim(2)/2);}
-  if (yc!=[]) {yc = float(yc-1.);} else {yc = float(dim(3)/2);}
-
-  res = _dist(&d,dim(2),dim(3),xc,yc);
-
-  return d;
-}
-
-//---------------------------------------------------------
-
-func zernumero(zn)
-/* DOCUMENT zernumero(zn)
- * Returns the radial degree and the azimuthal number of zernike
- * number zn, according to Noll numbering (Noll, JOSA, 1976)
- * SEE ALSO: prepzernike, zernike
- */
-{
-  j	= 0;
-  for (n=0;n<=100;n++)
-   {
-    for (m=0;m<=n;m++)
-     {
-       if (((n-m) % 2) == 0)
-       {
-        j	= j+1;
-        if (j == zn) {return [n,m];}
-        if (m != 0)
-         {
-          j	= j+1;
-          if (j == zn) {return [n,m];}
-         }
-       }
-     }
-   }
-}
-
-//---------------------------------------------------------
-
-func gamma(arg)
-/* DOCUMENT gamma(arg)
- * Gamma function.
- * SEE ALSO: gamma.i in yorick/i/
- */
-{
-  if (arg == 0.) {
-    return 1.;
-  } else {
-    return exp(ln_gamma(arg));
-  }
-}
-
-//---------------------------------------------------------
-
-func factoriel(arg)
-/* DOCUMENT factoriel(arg)
- * Return factoriel of the argument    
- * SEE ALSO:
- */
-{
-  if (arg == 0) {
-    return 1.;
-  } else {
-    res = 1.;
-    for (i=1;i<=arg;i++) res = res*i;
-    return res;
-   }
-}
-
-//---------------------------------------------------------
-
-func prepzernike(size,diameter,xc,yc)
-/* DOCUMENT prepzernike(size,diameter,xc,yc)
- * Call this function to set up the geometry for subsequent calls
- * to the zernike function.
- * size : size of the 2d array on which future "zernike" will be returned
- * diameter : diameter of the pupil in pixel in the array
- * xc, yc (optional) : Coordinates (in pixels of the center of the pupil)
- * Example:
- * > prepzernike,128,100
- * > pli,zernike(6)
- * SEE ALSO: zernike,zernike_ext,zernumero
- */
-{
-  extern zdim,zr,zteta,zmask,zrmod,zmaskmod;
-
-  if (xc == []) {xc = size/2+1;}
-  if (yc == []) {yc = size/2+1;}
-
-  radius= (diameter+1.)/2.;
-  zdim	= size;
-  zr	= mydist(zdim,xc=xc,yc=yc)/radius;
-  zmask	= (zr <= 1.);
-  zmaskmod = (zr <= 1.2);
-  zrmod	= zr*zmaskmod;
-  zr	= zr*zmask;
-  x	= float(span(1,zdim,zdim)(,-:1:zdim));
-  y	= transpose(x);
-  zteta	= atan(y-yc,x-xc);
-}
-
-//---------------------------------------------------------
-
-func zernike(zn)
-/* DOCUMENT zernike(zn)
- * Returns the zernike number zn, defined on a 2D array as per
- * the prepzernike function.
- * These zernikes follow the Noll (JOSA, 1976) numbering and
- * definition (rms of 1 over the pupil)
- * Example:
- * > prepzernike,128,100
- * > pli,zernike(6)
- * SEE ALSO: prepzernike, zernumero
- */
-{
-  extern zdim,zr,zteta,zmask,zrmod,zmaskmod;
-
-  z	= array(float,zdim,zdim);
-  znm	= zernumero(zn) ; n=znm(1) ; m=znm(2);
-
-  for (i=0;i<=(n-m)/2;i++) {
-    z = z + (-1.)^i*zr^(n-2.*i)*factoriel(n-i)/
-      (factoriel(i)*factoriel((n+m)/2-i)*factoriel((n-m)/2-i));
-  }
-  if ((zn % 2) == 1) {
-    if (m == 0) {
-      z = z*sqrt(n+1.);
-    } else {
-      z = z*sqrt(2*(n+1.))*sin(m*zteta);
-    }
-  } else {
-    if (m == 0) {
-      z = z*sqrt(n+1.);
-    } else {
-      z = z*sqrt(2*(n+1.))*cos(m*zteta);
-    }
-  }
-
-  return z*zmask;
-}
-
-//----------------------------------------------------
-
-func make_pzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
-  /* DOCUMENT function make_pzt_dm2(dm_structure,disp=)
-     the influence functions are in microns per volt.
-  */
-{
-  if (xflip == []) xflip = 0;
-  if (yflip == []) yflip = 0;
-  if (pitchMargin == []) pitchMargin = 0;
-  if (unitpervolt == []) unitpervolt = 1;
-  
-  cent = size/2+0.5;
-
-  // best parameters, as determined by a multi-dimensional fit
-  // (see coupling3.i)
-  a=[4.49469,7.25509,-32.1948,17.9493];
-  p1 = a(1)+a(2)*coupling+a(3)*coupling^2+a(4)*coupling^3;
-
-  a = [2.49456,-0.65952,8.78886,-6.23701];
-  p2 = a(1)+a(2)*coupling+a(3)*coupling^2+a(4)*coupling^3;
-
-  a = [1.16136,2.97422,-13.2381,20.4395];
-  irc = a(1)+a(2)*coupling+a(3)*coupling^2+a(4)*coupling^3;
-
-  /*
-    ir  = pitch*1.2;
-    ir  = pitch*1.46;
-    ir  = pitch*1.65;
-    c  = 3.8; p1 = 3.9; p2 = 2.4; ir = pitch*1.20;  // good. no. coupling 8% too low
-    c  = 3.8; p1 = 4; p2 = 2.4; ir = pitch*1.65;
-    c  = 3.75; p1 = 4.2; p2 = 2.5; ir = pitch*1.25; //ok, coupling=13%
-    c  = 3.74; p1 = 3.805; p2 = 2.451; ir = pitch*1.4; //good, coupling=17%
-    c  = 4; p1 = 3.84; p2 = 2.5; ir = pitch*1.5; //good, coupling=20%
-    c  = 3.74; p1 = 3.805; p2 = 2.451; ir = pitch*1.4; //good, coupling=17%
-  */
-  ir = irc*pitch;
-
-  bord  = 0;
-  cub   = array(float,nxact+bord*2,nxact+bord*2,4);
-
-  // make X and Y indices array:
-  xy    = indices(nxact+bord*2);
-
-  // express "centered" coordinate of actuator in pixels:
-  xy    = (xy-1.-bord-(nxact-1.)/2.)*pitch;
-
-  // fill cub (X coord  and Y coord):
-  cub(,,1) = xy(,,1); cub(,,2) = xy(,,2);
-
-  if (xflip) cub(,,1) = cub(::-1,,1);
-  if (yflip) cub(,,2) = cub(,::-1,1);
-
-  dis      = sqrt(cub(,,1)^2.+cub(,,2)^2.);
-  
-  if (pitchMargin == 0)  pitchMargin = 1.44;
-
-  rad      = ((nxact-1.)/2.+pitchMargin)*pitch; //+1.44 is the margin
-  inbigcirc= where(dis < rad);
-  // 1 if valid actuator, 0 if not:
-  // selection is done after interaction matrix is done
-  cub(,,3) = 1;
-
-  // 1 if valid guard ring actuator, 0 if not:
-  //cub(,,4) = (dis >= (pupr+extent*pitch)) & (dis < (pupr+(1.+extent)*pitch));
- // I don't use extrapolation actuator anymore.
-  cub(,,4) = 0.;
-
-  // converting to array coordinates:
-  cub(,,1) = cub(,,1)+cent;
-  cub(,,2) = cub(,,2)+cent;
-
-  cub      = cub(*,);
-  // cub now has two indices: first one is actuator number (valid or extrap)
-  // second one is: 1:Xcoord, 2:Ycoord, 3:valid?, 4:extrapolation actuator?
-
-  // filtering actuators outside of a disk radius = rad (see above)
-  cub      = cub(inbigcirc,);
-
-  cubval   = cub(where(cub(,3)),);
-
-  nvalid   = int(sum(cubval(,3)));
-
-  xy    = indices(size);
-//  x     = xy(,,2); y = xy(,,1);
-  x     = xy(,,1); y = xy(,,2);
-  def = array(float,size,size,nvalid);
-
-  extent = pitch*(nxact+2.); // + 1.5 pitch each side      
-  _n1 = long(clip(floor(cent-extent/2.),1,));
-  _n2 = long(clip(ceil(cent+extent/2.),,dim));
-  //x = x(_n1:_n2,_n1:_n2);
-  //y = y(_n1:_n2,_n1:_n2);
-
-  tmp=pitch/abs(ir);
-  c = (coupling - 1.+ tmp^p1)/(log(tmp)*tmp^p2);
-
-  for (i=1;i<=nvalid;i++) {
-    tmpx       = clip(abs((x-cubval(i,1))/ir),1e-8,2.);
-    tmpy       = clip(abs((y-cubval(i,2))/ir),1e-8,2.);
-    tmp        = (1.-tmpx^p1+c*log(tmpx)*tmpx^p2)*(1.-tmpy^p1+c*log(tmpy)*tmpy^p2);
-    def(,,i)   = tmp*(tmpx <= 1.)*(tmpy <= 1.);
-  }
-
-  tmp=pitch/abs(ir);
-  coupling = 1.- tmp^p1 + c*log(tmp)*tmp^p2;
-
-  fact = unitpervolt/max(def);
-
-  def = float(def*fact);
-
-  return def;
-}
-
-
-func filter_quad(size,dim,centx,centy,basis,foconly=)
-{
-  if (foconly == []) foconly = 0;
-  prepzernike,size,dim,centx,centy;
-  valids = where(zernike(1));
-  if (foconly) quads = [zernike(2),zernike(3),zernike(4)];
-  else quads = [zernike(2),zernike(3),zernike(4),zernike(5),zernike(6)];
-  
-  matPass = (LUsolve(quads(*,)(valids,)(+,)*quads(*,)(valids,)(+,))(+,)*quads(*,)(valids,)(*,)(,+));
-  //matFilt = quads(,,+)*matPas(,+);
-  modes = matPass(,+)*basis(*,)(valids,)(+,);
-
-  basis2 = quads(,,+)*modes(+,);
-
-  /*
-  matPass = (LUsolve(basis(*,)(valids,)(+,)*basis(*,)(valids,)(+,))(+,)*basis(*,)(valids,)(*,)(,+));
-  modes2 = matPass(,+)*quads(*,)(valids,)(+,);
-
-  //res=(dm0(+)*modes2(+,))(+)*modes(+,);
-
-  matFilt = modes2(,+)*modes(+,);
-
-  //res2 = dm0(+)*matFilt(+,);
-
-  matFilt = modes(+,)*modes2(,+);
-  basis2 = basis(,,+)*matFilt(,+);
-
-  error;
-  */
-  return basis-basis2;
-}
 
 /*
  ____  _                      ____  _                    _ _         
@@ -422,118 +72,6 @@ func filter_quad(size,dim,centx,centy,basis,foconly=)
 |_|   |_| |_|\__,_|___/\___| |____/|_| \_/ \___|_|  |___/_|\__|\__, |
                                                                |___/ 
 */
-
-func prepmirror(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpup,deftt,&gradG,orthonorm=)
-/* DOCUMENT 
- * prepmirror(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpup,deftt,&gradG,orthonorm=)
- * This routine returns the influence functions in the grid model
- *
- */ 
-{
-  if (orthonorm == []) orthonorm = 0;
-
-  nactu = long(nactu(1));
-  pup = defpup;
-  x = span(-1,1,nactu)(,-:1:nactu);
-  y = transpose(x);
-  k=0;
-  
-  def = array(0.0, size, size, nactu*nactu);
-  gradG = array(0.0, size, size, nactu*nactu,4);
-  Ax = -log(couplingFact)/((2./(nactu-1))^2);
-  Ay = -log(couplingFact)/((2./(nactu-1))^2);
-  
-  for(i=1;i<=nactu;i++) {
-    for(j=1;j<=nactu;j++) {
-      r = sqrt(x(i,j)^2 + y(i,j)^2 );
-      if( r<1.1 ) {
-        k++;
-        xc = x0 + j*dmpitchX;
-        yc = y0 + i*dmpitchY;
-        def(,,k) = mygauss2(size,xc,yc,Ax/2.82843,Ay/2.82843,1.,0.,0.,grad,deriv=1);
-        gradG(,,k,1) = grad(,,1); // grad x0
-        gradG(,,k,2) = grad(,,2); // grad y0
-        gradG(,,k,3) = grad(,,1)*j; // grad pitchX
-        gradG(,,k,4) = grad(,,2)*i; // grad pitchY
-      }
-    }
-  }
-  def = pup * def(,,:k);
-  gradG = pup * gradG(,,:k,);
-
-  nmodes = dimsof(def)(4);
-  norm = sum(deftt(,,2)^2);
-
-  for (cc=1;cc<=nmodes;cc++) {
-    norm_tmp = (sqrt(sum(def(,,cc)^2)/norm))
-    def(,,cc) /= norm_tmp; 
-    gradG(,,cc,) /= norm_tmp;
-  }
-  
-  return def;
-}
-
-func mygauss2(size,xc,yc,fwhmx,fwhmy,a,angle,fond,&grad,deriv=)
-/* DOCUMENT mygauss2(size,xc,yc,fwhmx,fwhmy,a,angle,fond,&grad,deriv=)
-* SEE ALSO:
-*/
-{
-  x=(indgen(size))(,-:1:size);
-  y=transpose(x);
-  x -= xc;
-  y -= yc;
-  
-  s = sin(angle);
-  c = cos(angle);
-  u = x*c-y*s;
-  v = x*s+y*c;
-
-  g1 = exp(-(u/(fwhmx/1.66))^2-(v/(fwhmy/1.66))^2);
-  g = a*g1;
-  
-  if (deriv) {
-    grad = array(0.,[3,size,size,7]);
-    grad(,,1) = 2*(c*u/((fwhmx/1.66)^2)+s*v/((fwhmy/1.66)^2))*g; // gradxc
-    grad(,,2) = 2*(c*v/((fwhmy/1.66)^2)-s*u/((fwhmx/1.66)^2))*g; // gradyc
-    grad(,,3) = 5.5112*u^2*g/fwhmx^3; // grad fwhmx
-    grad(,,4) = 5.5112*v^2*g/fwhmy^3; // grad fwhmy
-    grad(,,5) = g1; // grad a
-    grad(,,6) = 5.5112*g*u*v*(1./fwhmx^2-1./fwhmy^2); // grad angle
-    grad(,,7) = 1; // grad fond
-  }
-  return g+fond;
-}
-
-func prepadonis(size, patchDiam, nactu, couplingFact, defpup, deftiptilt)
-{
-  pup = defpup;
-  x=span(-size,size,size)(,-:1:size) / (patchDiam+1);
-  y=transpose(x);
-  x0 = span(-1,1,nactu)(,-:1:nactu);
-  y0 = transpose(x0);
-  k=0;
-  espaceInterAct = 2./(nactu-1);
-  def = array(0.0, size, size, nactu*nactu);
-  A = -log(couplingFact)/(espaceInterAct^2);
-  for(j=1;j<=nactu;j++) {
-    for(i=1; i<=nactu;i++) {
-      r = sqrt( x0(i,j)^2 + y0(i,j)^2 );
-      if( r<1.1 ) {
-        k++;
-        def(,,k) = exp(-A*((x-1.*x0(nactu-i+1,j))^2+(y-1.*y0(i,j))^2));
-        //def(,,k) = roll(def(,,k),[-1,-3]);
-      }
-    }
-  }
-  def = pup * def(,,:k);
-  
-  nmodes = dimsof(def)(4);
-  norm = sum(deftiptilt(,,2)^2);
-  for (cc=1;cc<=nmodes;cc++)
-    def(,,cc) /= (sqrt(sum(def(,,cc)^2)/norm)); 
- 
-  return def;
-}
 
 func phase2psf(phase,mask,size,&ampliPup,&ampliFoc,fftws=)
 /* DOCUMENT phase2psf
@@ -693,7 +231,7 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   return _(gGrid,gradScale,gradCoeff);
 }
 
-func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=)
+func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=,pupmap=)
 /* DOCUMENT pray_coeff2psfs
  *  
  * psfs = pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,scale=)
@@ -755,7 +293,6 @@ func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=)
   }
   
   pray_data.mircube = &float(mircube);
-  
   bphase = array(float,[3,size,size,ntarget]);
   psnx = dimsof(mircube)(2);
   psny = dimsof(mircube)(3);
@@ -780,7 +317,10 @@ func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=)
   for (i=1;i<=ntarget;i++) {
     tmp = bphase(,,i);
     if (poffset != []) tmp -= poffset;
-    psfs(,,i) = phase2psf(tmp(_n1:_n2,_n1:_n2),ipupil(_n1:_n2,_n1:_n2),\
+    if (pupmap != [])
+      msk = ipupil * pupmap;
+    else msk = ipupil;
+    psfs(,,i) = phase2psf(tmp(_n1:_n2,_n1:_n2),msk(_n1:_n2,_n1:_n2),\
                           size,amp1,amp2,fftws=fftws);
     ampliPup(,,i) = amp1;
     ampliFoc(,,i) = amp2;
@@ -788,10 +328,10 @@ func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=)
   return psfs;
 }
 
-func pray_init(xpos,ypos,tmodes=,tiptilt=,poffset=)
+func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
 /* DOCUMENT pray_init
  *  
- * pray_init,xpos,ypos,tmodes=,tiptilt=
+ * pray_init,xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=
  *
  * In this routine, the overall geometry is initialized
  *
@@ -867,10 +407,20 @@ func pray_init(xpos,ypos,tmodes=,tiptilt=,poffset=)
           //def(,,cpt) = zernike(selz(i));
         }
       } else  {
-        for (i=7;i<=nzer(k)+6;i++) {
-          cpt ++;
-          def(,,cpt) = zernike(i);
-        }
+        /*
+        if (filter_quad == 0) {
+          for (i=1;i<=nzer(k);i++) {
+            cpt ++;
+            def(,,cpt) = zernike(i+1);
+            //def(,,cpt) = zernike(selz(i));
+          }
+        } else {
+        */
+          for (i=7;i<=nzer(k)+6;i++) {
+            cpt ++;
+            def(,,cpt) = zernike(i);
+          }
+          //}
       }
     }
 
@@ -878,16 +428,18 @@ func pray_init(xpos,ypos,tmodes=,tiptilt=,poffset=)
       pup1 = [];
       if (k==1) {
         foc = zernike(4);
-        kl = make_kl(nzer(k),patchDiam,v,obas,pup1,oc=0.0,nr=128);
+        kl = make_kl(nzer(k),pupd,v,obas,ipupil,oc=cobs,nr=128,nopup=1);
         //    kl = order_kls(kl,patchDiam,upto=20);
-        def(size/2-patchDiam/2+1:size/2+patchDiam/2,            \
-            size/2-patchDiam/2+1:size/2+patchDiam/2,2:nzer(k)) = kl(,,:-1);
-        
-        //def = def(,,_(1,indgen(nzer(k)-1)));
-        def(,,1:nzer(k)) *= ipupil;
-        //     m = def(*,)(+,) * foc(*)(+);   
-        //     def -= m(+)*foc(,,-:1:nzer(k))(,,+);
-        def(,,1) = foc;
+        def(size/2-pupd/2+1:size/2+pupd/2,            \
+            size/2-pupd/2+1:size/2+pupd/2,2:nzer(k)) = kl(,,:-1);
+        def *= ipupil;
+
+        // filtering focus : not working
+        //res=def-foc(,,-::nzer(k)-1)(,,+)*(diag((def(*,)(where(ipupil),)(+,)*foc(*)(where(ipupil))(+))))(+,);
+
+        tmp = def(,,2:3);
+        def(,,1:2) = tmp;
+        def(,,3) = foc;
         cpt += nzer(k);
       } else {
         if ((patchDiam % 2) != 0) patchDiam += 1;
@@ -901,16 +453,22 @@ func pray_init(xpos,ypos,tmodes=,tiptilt=,poffset=)
     
     if(tmodes == 2) {
       // rough mirror model
-      deftt = [zernike(4),zernike(2),zernike(3)];
-      tmp = prepadonis(size, pupd, nact_gems(k), 0.2, ipupil, deftt);
-      if (k==1) {
-        def(,,1:3) = [zernike(2),zernike(3),zernike(4)];
-        def(,,4:nzer(k)) = tmp;
-        istart = nzer(k)
+      // best fit :
+      if (mir_params == []) {
+        pxm = 0.485998;
+        pym = 0.499824;
+        x0m = 0.00156321;
+        y0m = 0.00194297;
       } else {
-        def(,,istart+1:nzer(k)+istart) = tmp;
-        istart += nzer(k);
+        pxm = mir_params(1);
+        pym = mir_params(2);
+        x0m = mir_params(3);
+        y0m = mir_params(4);
       }
+      //deftt = [zernike(2),zernike(3),zernike(4)];
+      tmp = prepcanamir(size, pupd,ceil(sqrt(nzer(1))),0.2,pxm,pym,x0m,y0m,ipupil);
+      def(,,1:3) = [zernike(2),zernike(3),zernike(4)];
+      def(,,4:nzer(1)) = tmp;
       // size = taill tot support, cent=size/2+0.5
     }
     
@@ -1081,6 +639,8 @@ func pray_error(param,&gradient,extra)
   def         = *extra.def;
   defPup      = *extra.defPup;
   ipupil      = *extra.ipupil;
+  pupmap      = *extra.pupmap;
+  if (numberof(pupmap)==1) pupmap = [];
   pupd        = extra.pupd;
   size        = extra.size;
   fftws       = *extra.fft_ws;
@@ -1093,12 +653,12 @@ func pray_error(param,&gradient,extra)
 
   if (dmgrid) {
     // here we need to recompute the modeArray + gradients
-    def      = *(pray_data.def);
-    x0       = param(1);
-    y0       = param(2);
-    dmpitchX = param(3);
-    dmpitchY = param(4);
-    gradG = 0.0;
+    def       = *(pray_data.def);
+    x0        = param(1);
+    y0        = param(2);
+    dmpitchX  = param(3);
+    dmpitchY  = param(4);
+    gradG     = 0.0;
     def(,,4:) = prepmirror(size,pupd,ceil(sqrt(nzer(1))),0.09,dmpitchX,dmpitchY,x0,y0, \
                            ipupil,def(,,1:3),gradG,orthonorm=1) ;
     param         = param(5:);
@@ -1146,17 +706,18 @@ func pray_error(param,&gradient,extra)
     gradientObj = array(0.0,3);
     new_obj = mygauss2(size,size/2+1,size/2+1,params_object(1),params_object(2),1.,params_object(3),0.,grad_obj,deriv=1);
     norm_obj = sum(new_obj);
+    norm_im = images(,,avg,1)(*)(sum);
     new_obj /= norm_obj;
-    new_obj *= images(,,avg,1)(*)(sum);
+    new_obj *= norm_im;
     grad_obj /= norm_obj;
-    grad_obj *= (images(,,avg,1)(*)(sum));
+    grad_obj *= norm_im;
     ftobject = fft(new_obj,1);
   }
   
   //-----------------------------------------------------------------
   // First dealing with in-focus images
   tmp = coeffs;
-  psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset);
+  psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap);
   // here the psf is centered at (0,0)
   // tmp includes tt coeffs for starpos estimation
 
@@ -1215,7 +776,7 @@ func pray_error(param,&gradient,extra)
       tmp(2) += coeff_diff(2*n);
     }
        
-    psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset);
+    psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap);
  
     for (i=1;i<=ntarget;i++) {
       ftPsf = fft(psfs(,,i),1,setup=fftws);
@@ -1269,7 +830,7 @@ func pray_error(param,&gradient,extra)
 }
  
 
-func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs=,osampl=,disp=,verbose=,threshold=,nbiter=,tmodes=,tiptilt=,variance=,guess=,scale=,diff_tt=,fit_starpos=,fit_object=)
+func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs=,osampl=,disp=,verbose=,threshold=,nbiter=,tmodes=,tiptilt=,variance=,guess=,scale=,diff_tt=,fit_starpos=,fit_object=,pup_params=,mir_params=,script=)
 /* DOCUMENT pray
  *  
  *  pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs=,osampl=,disp=,verbose=,threshold=,nbiter=,tmodes=,tiptilt=,variance=,guess=,scale=)
@@ -1294,19 +855,26 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   
   // Init verbose and disp flags
   if (!is_set(verbose)) verbose=0;
-  if (!is_set(disp)) disp=0;                           \
+  if (!is_set(disp)) disp=0;
+  if (!is_set(script)) script = 0;
                                
   // sizes init and check
   dims = dimsof(images);
   if (dims(1) != 4) {
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","images format must follow : [size,size,ntarget,ndefoc]");
+    if (pray_gui) 
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","images format must follow : [size,size,ntarget,ndefoc]");
+    else
+      write,"images format must follow : [size,size,ntarget,ndefoc]"
     return 1;
   }
   size = dims(2);
   ntarget = dims(4);
   ndefoc = dims(5)-1;
   if ((numberof(xpos) != ntarget) || (numberof(ypos) != ntarget)) {
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","incompatible images and xpos size");
+    if (pray_gui)
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","incompatible images and xpos size");
+    else
+      write,"incompatible images and xpos size"
     return 1;
   }
 
@@ -1318,7 +886,18 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   pupd=long(floor(size/2/osampl));
   if (pupd%2 != 0) pupd += 1;
 
+  
   pray_data         = pray_struct();
+
+  // checking if there are a pupil map parameters
+  if (pup_params != []) {
+    if (numberof(pup_params) != 7) error,"wrong pup_params size";
+    a = _(float(pupd),size/2+0.5,size/2+0.5,pup_params);
+    tmp = pup_model(size,a);
+    pray_data.pupmap = &float(tmp/max(tmp));
+    cobs = pup_params(1);
+  } else pray_data.pupmap = &([0.0f]);
+
   pray_data.teldiam = teldiam;
   pray_data.cobs    = cobs;
   pray_data.pupd    = pupd;
@@ -1344,12 +923,17 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   pray_data.dmgrid  = dmgrid;
 
   // pray init
-  pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",\
-             "Initializing the pray workspace ...");
+  if (pray_gui)
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Initializing the PRAy workspace ...");
+  else
+    write,"Initializing the PRAy workspace ..."
   
-  pray_init,xpos,ypos,tmodes=tmodes;
-  
-  pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Done ...");
+      pray_init,xpos,ypos,tmodes=tmodes,mir_params=mir_params;
+
+  if (pray_gui)
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Done ...");
+  else
+    write,"Done ...";
 
   // ... testing the size and content of variance
   if (variance==[]) {
@@ -1358,13 +942,19 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   } else {
     sz_variance = numberof(variance);
     if ((sz_variance != 1) & (sz_variance != numberof(deltaFoc)) & (sz_variance != numberof(images))) {
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",\
-                 "variance must be a scalar or of same size than image.");
+      if (pray_gui)
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "variance must be a scalar or of same size than image.");
+      else
+        write,"variance must be a scalar or of same size than image.";
       return 1;
     } else {
       if (min(variance) <= 0.) {
-        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",\
-                   "variance must be strictly positive");
+        if (pray_gui)
+          pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')", \
+                          "variance must be strictly positive");
+        else
+          write,"variance must be strictly positive";
         return 1;
       }
     }
@@ -1374,8 +964,11 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   norm = 0.;//guess*0.;
   if (guess != []) {
     if (numberof(guess) != nzer(*)(sum)) {
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",\
-                 "Guess does not have the proper size. Initializing to 0s.");
+      if (pray_gui)
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "Guess does not have the proper size. Initializing to 0s.");
+      else
+        write,"Guess does not have the proper size. Initializing to 0s.";
       pray_param = array(0.,nzer(*)(sum)) ;
     } else pray_param = guess;
   } else pray_param = array(0.,nzer(*)(sum)) ;
@@ -1391,7 +984,6 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   if (diff_tt) pray_param = _(array(0.0f,2*ndefoc),pray_param);
   if (scale) pray_param = _(1.,pray_param);
   if (fit_object) pray_param = _([2.,2.,0.],pray_param);
-
   
   // adding parameters for the dm grid model
   if (dmgrid) {
@@ -1435,15 +1027,17 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   // Some initializations for the minimization process
   for (cc=numberof(deltaFoc)+1;cc<=numberof(deltaFoc)+dimsof(pray_mircube)(4);cc++) {
     pname = swrite(format="Phase on layer %d",cc-numberof(deltaFoc));
-    pyk,swrite(format=cmd_pray+"glade.get_widget('winselect_error_disp').insert_text(%d,'%s')",\
+    pyk_pray,swrite(format=cmd_pray+"glade.get_widget('winselect_error_disp').insert_text(%d,'%s')",\
                cc,pname);
   }
-  pyk,swrite(format=cmd_pray+"glade.get_widget('winselect_error_disp').set_active(%d)",0);
+  pyk_pray,swrite(format=cmd_pray+"glade.get_widget('winselect_error_disp').set_active(%d)",0);
   pray_selected_error=1;
   */
-  pray_update_zernike_table,pray_param,pray_data.lambda,nzer(1);
-  pyk,swrite(format=cmd_pray+"glade.get_widget('winselect_pray_disp').set_active(%d)",0);
-  pray_selected_display=1;
+  if (pray_gui) {
+    pray_update_zernike_table,pray_param,pray_data.lambda,nzer(1);
+    pyk,swrite(format=cmd_pray+"glade.get_widget('winselect_pray_disp').set_active(%d)",0);
+    pray_selected_display=1;
+  }
 
   pray_param = double(pray_param); //optimPack compat ... needs to be double
   nmin = numberof(pray_param);
@@ -1479,7 +1073,8 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   timer, elapsed;
   cpu_start = elapsed(1);
 
-  pray_loop;
+  if (!script) pray_loop;
+  else pray_loop_script;
 }
 
 func pray_loop(one)
@@ -1505,33 +1100,47 @@ func pray_loop(one)
     pray_update_comments,pray_iter, pray_eval, cpu,pray_f,gnorm,pray_step;
     
     if (pray_iter == pray_data.nbiter) {
-      pray_progressbar_text,"I reached the number max of iterations";
-      pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
-                 "End of The Minimization process");
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",          \
-                 "---------------------------------------------------------------");
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",  \
-                 "I reached the number max of iterations");
+      if (pray_gui) {
+        pray_progressbar_text,"I reached the max number of iterations";
+        pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
+                        "End of The Minimization process");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "---------------------------------------------------------------");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "I reached the max number of iterations");
+      } else {
+        write,"End of The Minimization process";
+        write,"---------------------------------------------------------------";
+        write,"I reached the max number of iterations";
+      }
       stop_pray_loop = 1;
     }
 
     if (pray_eval == pray_data.neval) {
-      pray_progressbar_text,"I reached the number max of eavaluation";
-      pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
-                 "End of The Minimization process");
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",          \
-                 "---------------------------------------------------------------");
-      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",  \
-                 "I reached the number max of evaluations");
+      if (pray_gui) {
+        pray_progressbar_text,"I reached the max number of eavaluation";
+        pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
+                        "End of The Minimization process");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "---------------------------------------------------------------");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",   \
+                        "I reached the max number of evaluations");
+      } else {
+        write,"End of The Minimization process";
+        write,"---------------------------------------------------------------";
+        write,"I reached the max number of evaluations";
+      }
       stop_pray_loop = 1;
     }
-    if (dispok) {
+    if ((dispok) && (pray_gui)) {
       pray_disp_select;
       pray_disp_error;
     }
 
-    pray_progressbar_frac,float(pray_iter)/pray_data.nbiter;
-    pray_progressbar_text,swrite(format="iter %d of %d",pray_iter,pray_data.nbiter);
+    if (pray_gui) {
+      pray_progressbar_frac,float(pray_iter)/pray_data.nbiter;
+      pray_progressbar_text,swrite(format="iter %d of %d",pray_iter,pray_data.nbiter);
+    }
   }
 
   min_method = 0;
@@ -1553,25 +1162,36 @@ func pray_loop(one)
   }
   
   if (pray_task > 2) {
-    pray_progressbar_frac,1.0;
-    pray_progressbar_text,"I reached the convergence threshold";
-    pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')","End of The Minimization process");
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","I reached the convergence threshold");
+    if (pray_gui) {
+      pray_progressbar_frac,1.0;
+      pray_progressbar_text,"I reached the convergence threshold";
+      pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')","End of The Minimization process");
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","I reached the convergence threshold");
+    } else {
+      write,"End of The Minimization process";
+      write,"---------------------------------------------------------------";
+      write,"I reached the convergence threshold";
+    }
     stop_pray_loop = 1;
   }    
  
-  pray_update_zernike_table,pray_param,pray_data.lambda,(*pray_data.nzer)(1);
+  if (pray_gui) pray_update_zernike_table,pray_param,pray_data.lambda,(*pray_data.nzer)(1);
 
   if (stop_pray_loop) {
     stop_pray_loop=0;
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
     newstring = swrite(format="Value of the criterion after %d iterations : %23.2e",pray_iter,pray_error(pray_param,grad_fin,pray_data));
-    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",newstring);
-    
-    pray_disp_select;
-    pray_disp_error;
-    pyk,cmd_pray+"y_on_loop_finished()";
+    if (pray_gui) {
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
+      pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",newstring);
+      
+      pray_disp_select;
+      pray_disp_error;
+      pyk,cmd_pray+"y_on_loop_finished()";
+    } else {
+      write,"---------------------------------------------------------------";
+      write,newstring;
+    }
     return;
   }
   
@@ -1580,14 +1200,141 @@ func pray_loop(one)
   }
 }
 
+func pray_loop_script(void)
+{
+  extern pray_data,pray_iter;
+  extern pray_param,dispok;
+  extern stop_pray_loop;
+  extern elapsed,cpu_start,pray_task,pray_eval,pray_step,pray_wfs,pray_f,pray_g;
+
+  while (!stop_pray_loop) {
+    if (pray_task == 1) {
+      /* Evaluate function. */
+      pray_f = pray_error(pray_param,pray_g,pray_data);
+      ++pray_eval;
+    }
+    
+    pray_iter+=1;
+    /* Check for convergence. */
+    if (pray_task != 1 || pray_eval == 1) {
+      timer, elapsed;
+      cpu = elapsed(1) - cpu_start;
+      gnorm = sqrt(sum(pray_g*pray_g));
+      
+      pray_update_comments,pray_iter, pray_eval, cpu,pray_f,gnorm,pray_step;
+      
+      if (pray_iter == pray_data.nbiter) {
+        if (pray_gui) {
+          pray_progressbar_text,"I reached the max number of iterations";
+          pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
+                     "End of The Minimization process");
+          pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",      \
+                     "---------------------------------------------------------------");
+          pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",      \
+                     "I reached the max number of iterations");
+        } else {
+          write,"End of The Minimization process";
+          write,"---------------------------------------------------------------";
+          write,"I reached the max number of iterations";
+        }
+        stop_pray_loop = 1;
+      }
+      
+      if (pray_eval == pray_data.neval) {
+        if (pray_gui) {
+          pray_progressbar_text,"I reached the max number of eavaluation";
+          pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')", \
+                     "End of The Minimization process");
+          pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",      \
+                     "---------------------------------------------------------------");
+          pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",      \
+                     "I reached the max number of evaluations");
+        } else {
+          write,"End of The Minimization process";
+          write,"---------------------------------------------------------------";
+          write,"I reached the max number of evaluations";
+        }
+        stop_pray_loop = 1;
+      }
+      if ((dispok) && (pray_gui)) {
+        pray_disp_select;
+        pray_disp_error;
+      }
+      
+      if (pray_gui) {
+        pray_progressbar_frac,float(pray_iter)/pray_data.nbiter;
+        pray_progressbar_text,swrite(format="iter %d of %d",pray_iter,pray_data.nbiter);
+      }
+    }
+    
+    min_method = 0;
+    
+    if (min_method == 0) {
+      pray_task = op_vmlmb_next(pray_param, pray_f, pray_g, pray_ws);
+      pray_iter = (*pray_ws(2))(7);
+      pray_step = (*pray_ws(3))(22);
+    } else {
+      if (min_method < 0) {
+        pray_task = op_lbfgsb_next(double(pray_param), pray_f, pray_g, pray_ws);
+        if (pray_task == 2 || pray_task == 3) ++pray_iter;
+        pray_step = -1.0;
+      } else {
+        optim_cgmn, pray_param, pray_f, pray_g, pray_task, pray_ws;
+        pray_iter = optim_cgmn_iter(pray_ws);
+        pray_step = optim_cgmn_step(pray_ws);
+      }
+    }
+    
+    if (pray_task > 2) {
+      if (pray_gui) {
+        pray_progressbar_frac,1.0;
+        pray_progressbar_text,"I reached the convergence threshold";
+        pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')","End of The Minimization process");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
+        pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","I reached the convergence threshold");
+      } else {
+        write,"End of The Minimization process";
+        write,"---------------------------------------------------------------";
+        write,"I reached the convergence threshold";
+      }
+      stop_pray_loop = 1;
+    }    
+    
+    if (pray_gui) pray_update_zernike_table,pray_param,pray_data.lambda,(*pray_data.nzer)(1);
+  }
+  
+  stop_pray_loop=0;
+  newstring = swrite(format="Value of the criterion after %d iterations : %23.2e",pray_iter,pray_error(pray_param,grad_fin,pray_data));
+  if (pray_gui) {
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","---------------------------------------------------------------");
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",newstring);
+    
+    pray_disp_select;
+    pray_disp_error;
+    pyk,cmd_pray+"y_on_loop_finished()";
+  } else {
+    write,"---------------------------------------------------------------";
+    write,newstring;
+  }
+  return;
+}
+
 func pray_update_comments(iter, eval, cpu,f,gnorm,step)
 {
   extern cmd_pray;
-  
-  pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')"," ITER    EVAL     CPU [s]          FUNC          GNORM   STEPLEN  ");
-  pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","------    ------     ----------   -----------------------    ---------     ---------");
+
   newstring = swrite(format=" %5d %5d %10.3f     %+-10.6e  %-9.1e  %-9.1e",iter, eval, cpu,f , gnorm, step);
-  pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",newstring);
+  if (pray_gui) {
+    pyk,swrite(format=cmd_pray+"glade.get_widget('textview2').get_buffer().set_text('%s')"," ITER    EVAL     CPU [s]          FUNC          GNORM   STEPLEN  ");
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","------    ------     ----------   -----------------------    ---------     ---------");
+    pyk,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')",newstring);
+  } else {
+    if (iter == 1) {
+      write," ITER    EVAL     CPU [s]        FUNC       GNORM     STEPLEN  ";
+      write,"------  ------  ----------   ----------  -----------    -------";
+      write,newstring;
+    } else write,format="\r %s \n",newstring;
+  }
 }
 
 func pray_print_results(output, iter, eval, cpu, fx, gnorm, steplen, x, extra)
@@ -1603,7 +1350,7 @@ func pray_print_results(output, iter, eval, cpu, fx, gnorm, steplen, x, extra)
 func pray_update_zernike_table(coeffs,lambda,nzer)
 {
   //box_content = swrite(format="%4.1f",deltaFoc/(2*pi/lambda));
-  //pyk,swrite(format=cmd_pray+"glade.get_widget('deltafoc_entry').set_text('%s')",box_content);ic
+  //pyk_pray,swrite(format=cmd_pray+"glade.get_widget('deltafoc_entry').set_text('%s')",box_content);ic
   istart = 1;
   if (pray_data != []) {
     if (pray_data.dmgrid) coeffs = coeffs(5:);
@@ -1623,6 +1370,12 @@ func pray_update_zernike_table(coeffs,lambda,nzer)
   } 
 }
 
+func stop_pray(void)
+{
+  extern stop_pray_loop;
+
+  stop_pray_loop = 1;
+}
 
  /*
    
