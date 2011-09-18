@@ -1,4 +1,10 @@
 This is PRAy : The Phase Retrieval Algorithm in Yorick
-to launch the application, setup a PRAYTOP env variable to this directory 
+first compile c code
+go to trunk/yorick directory
+yorick -batch make.i
+make clean all
+to launch the application, setup a PRAYTOP env variable to the trunk directory 
 (ex if using bash export PRAYTOP=`pwd`)
-then just type yorick -i yorick/pray_gemini.i
+then just type yorick -i yorick/pray.i
+this will launch the GUI
+for exemples of scripts check the content of pray_scripts.i
