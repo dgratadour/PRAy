@@ -95,35 +95,6 @@ one defoc : "400"
 
 */
 
-
-
-func test3dsimple(snr)
-{
-  extern mcoeff,ref_phase;
-
-  mcoeff=pray_create(4,"['-45.','0.','45.','0.']","['0.','-45.','0.','45.']",
-                     2,"['0', '4500']","['100', '100']",
-                     1,"400",
-                     1550.,7.9,0.,15.,"Gaussian",.5,"Zernike",64,snr,0,0,0);
-  
-  ref_phase = pray_mircube;
-  
-  start_pray,4,"['-45.','0.','45.','0.']","['0.','-45.','0.','45.']",
-  2, "['0', '4500']", "['100', '100']", 15,
-  1, "400",
-  1550.,7.9, 0., 15., "Gaussian",.5, "Zernike", 500, 1, 3, 1, 0, 0, 0, 0, 0,script=1;
-
-  tmp = *pray_data.def;
-  write,format="Initial phase rms (nm)  on layer %d : %f\n",1,ref_phase(,,1)(*)(rms)*1.e3;
-  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,1:100)(,,+)*pray_param(1:100)(+))(*)(rms)*1.e3;
-
-  write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
-  write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)*1.e3;
-  
-}
-
-// 8 stars ...
-
 func test3dsimple1(snr,defoc)
 {
   extern mcoeff,ref_phase;
@@ -144,13 +115,13 @@ func test3dsimple1(snr,defoc)
   tmp = *pray_data.def;
   
   write,format="Initial phase rms (nm)  on layer %d : %f\n",1,ref_phase(,,1)(*)(rms)*1.e3;
-  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,1:100)(,,+)*pray_param(1:100)(+))(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)*1.e3;
 
   write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
   write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)*1.e3;
 
-  return [(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)/ref_phase(,,1)(*)(rms),
-          (ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)/ref_phase(,,2)(*)(rms)]
+  return [ref_phase(,,1)(*)(rms),(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms),
+          ref_phase(,,2)(*)(rms),(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)]*1.e3;
   
 }
 
@@ -174,43 +145,107 @@ func test3dsimple2(snr,defoc)
   tmp = *pray_data.def;
   
   write,format="Initial phase rms (nm)  on layer %d : %f\n",1,ref_phase(,,1)(*)(rms)*1.e3;
-  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,1:100)(,,+)*pray_param(1:100)(+))(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)*1.e3;
 
   write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
   write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)*1.e3;
 
-  return [(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)/ref_phase(,,1)(*)(rms),
-          (ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)/ref_phase(,,2)(*)(rms)]
+  return [ref_phase(,,1)(*)(rms),(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms),
+          ref_phase(,,2)(*)(rms),(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)]*1.e3;
   
 }
 
-func test3dsimple1_full(void)
+func test3d1(snr,defoc)
+{
+  extern mcoeff,ref_phase;
+
+  test_rms = 400.;
+  while (test_rms > 300) {
+    mcoeff=pray_create(4,"['-45.','0.','45.','0.']","['0.','-45.','0.','45.']",3, "['0', '4500', '9000']", "['100', '100', '100']", 1, defoc, 1550.0, 7.9, 0.12, 15.0, "Gaussian", 1.0, "Zernike", 64, snr, 0, 0, 0, "0", "0");
+
+  
+    ref_phase = pray_mircube;
+    test_rms = ref_phase(,,1)(*)(rms)*1.e3;
+  }
+
+
+  
+  start_pray, 4, "['-45.','0.','45.','0.']","['0.','-45.','0.','45.']",3, "['0','4500', '9000']", "['100', '100', '100']", 30, 1, defoc, 1550.000000, 7.900000, 0.120000, 15.000000, "Gaussian", 1.000000, "Zernike", 500, 1, 3, 1, 0, 0, 0, 0, 0, "0", "0",script=1;
+
+  tmp = *pray_data.def;
+  
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",1,ref_phase(,,1)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)*1.e3;
+
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:200)(,,+)*pray_param(101:200)(+))(*)(rms)*1.e3;
+
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,3)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,3)-tmp(,,201:)(,,+)*pray_param(201:)(+))(*)(rms)*1.e3;
+
+  return [ref_phase(,,1)(*)(rms),(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms),
+          ref_phase(,,2)(*)(rms),(ref_phase(,,2)-tmp(,,101:200)(,,+)*pray_param(101:200)(+))(*)(rms),
+          ref_phase(,,3)(*)(rms),(ref_phase(,,3)-tmp(,,201:)(,,+)*pray_param(201:)(+))(*)(rms)]*1.e3;  
+}
+
+
+func test3d2(snr,defoc)
+{
+  extern mcoeff,ref_phase;
+
+  test_rms = 400.;
+  while (test_rms > 300) {
+    mcoeff=pray_create(8,"['45.000000', '31.819800', '0.000000', '-31.819800', '-45.000000', '-31.819800', '0.000000', '31.819800']", "['0.000000', '31.819800', '45.000000', '31.819800', '0.000000', '-31.819800', '-45.000000', '-31.819800']", 3, "['0', '4500', '9000']", "['100', '100','100']", 1, defoc, 1550.0, 7.9, 0.12, 15.0, "Gaussian", 1.0, "Zernike", 64, snr, 0, 0, 0, "0", "0");
+
+  
+    ref_phase = pray_mircube;
+    test_rms = ref_phase(,,1)(*)(rms)*1.e3;
+  }
+
+
+  
+  start_pray, 8, "['45.000000', '31.819800', '0.000000', '-31.819800', '-45.000000', '-31.819800', '0.000000', '31.819800']", "['0.000000', '31.819800', '45.000000', '31.819800', '0.000000', '-31.819800', '-45.000000', '-31.819800']", 3, "['0','4500', '9000']", "['100', '100','100']", 30, 1, defoc, 1550.000000, 7.900000, 0.120000, 15.000000, "Gaussian", 1.000000, "Zernike", 500, 1, 3, 1, 0, 0, 0, 0, 0, "0", "0",script=1;
+
+  tmp = *pray_data.def;
+  
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",1,ref_phase(,,1)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",1,(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)*1.e3;
+
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:200)(,,+)*pray_param(101:200)(+))(*)(rms)*1.e3;
+
+  write,format="Initial phase rms (nm)  on layer %d : %f\n",3,ref_phase(,,3)(*)(rms)*1.e3;
+  write,format="Residual phase rms (nm) on layer %d : %f\n",3,(ref_phase(,,3)-tmp(,,201:)(,,+)*pray_param(201:)(+))(*)(rms)*1.e3;
+
+  return [ref_phase(,,1)(*)(rms),(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms),
+          ref_phase(,,2)(*)(rms),(ref_phase(,,2)-tmp(,,101:200)(,,+)*pray_param(101:200)(+))(*)(rms),
+          ref_phase(,,3)(*)(rms),(ref_phase(,,3)-tmp(,,201:)(,,+)*pray_param(201:)(+))(*)(rms)]*1.e3;   
+}
+
+func test3d_full(type)
 {
 
   ndefoc = 4;
   nsnr = 5;
   tabdefoc = ["200","400","600","800"];
-  tabres = array(0.,nsnr,ndefoc,100,2);
+  if (type < 3)
+    tabres = array(0.,nsnr,ndefoc,100,4);
+  else
+    tabres = array(0.,nsnr,ndefoc,100,6);
+    
   for (i=1;i<=nsnr;i++) {
     for (j=1;j<=ndefoc;j++) {
-      for (k=1;k<=100;k++) tabres(i,j,k,) = test3dsimple1(i+1,tabdefoc(j));
+      for (k=1;k<=100;k++) {
+        if (type == 1) tabres(i,j,k,) = test3dsimple1(i+1,tabdefoc(j));
+        if (type == 2) tabres(i,j,k,) = test3dsimple2(i+1,tabdefoc(j));
+        if (type == 3) tabres(i,j,k,) = test3d1(i+1,tabdefoc(j));
+        if (type == 4) tabres(i,j,k,) = test3d2(i+1,tabdefoc(j));
+      }
     }
   }
   return tabres;
 }
-func test3dsimple2_full(void)
-{
 
-  ndefoc = 4;
-  nsnr = 5;
-  tabdefoc = ["200","400","600","800"];
-  tabres = array(0.,nsnr,ndefoc,100,2);
-  for (i=1;i<=nsnr;i++) {
-    for (j=1;j<=ndefoc;j++) {
-      for (k=1;k<=100;k++) tabres(i,j,k,) = test3dsimple2(i+1,tabdefoc(j));
-    }
-  }
-  return tabres;
-}
+
 // quadratic modes filtering
 //
