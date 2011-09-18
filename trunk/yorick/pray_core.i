@@ -1,8 +1,3 @@
-// pixel : 20mas
-// lambda : 1.644
-// obs : 0
-//
-
 /*
  * pray_core.i
  *
@@ -156,14 +151,11 @@ func pray_c_data(&grad_psf,&grad_obj,ft_object=,image=,ft_psf=,variance=,type=,n
   HOminusI = HO - image;
 
   if (numberof(ft_object) > 1) 
-    grad_psf = 1./dim2*double(fft(conj(ft_object)*fft(HOminusI/variance,1,setup=fftws),\
-                                -1,setup=fftws));
-  else grad_psf = 1./dim2*roll(double(fft(fft(HOminusI/variance,1,setup=fftws), \
-                                          -1,setup=fftws)));
+    grad_psf = 1./dim2*double(fft(conj(ft_object)*fft(HOminusI/variance,1,setup=fftws),-1,setup=fftws));
+  else grad_psf = 1./dim2*roll(double(fft(fft(HOminusI/variance,1,setup=fftws),-1,setup=fftws)));
   
   if (grad_o)
-    grad_obj = 1./dim2*double(fft(conj(ft_psf)*fft(HOminusI/variance,1,setup=fftws), \
-                                       -1,setup=fftws));
+    grad_obj = 1./dim2*double(fft(conj(ft_psf)*fft(HOminusI/variance,1,setup=fftws),-1,setup=fftws));
   else grad_obj = 0.;
   
   if (type != []) {
@@ -175,7 +167,6 @@ func pray_c_data(&grad_psf,&grad_obj,ft_object=,image=,ft_psf=,variance=,type=,n
       pray_currerr(,,type) = (HOminusI)^2;
     }
   }
-
   return .5 * sum((HOminusI)^2/variance);
 }
 
@@ -204,15 +195,16 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   size2 = numberof(mask);
   size  = sqrt(size2);
   
-  dummy = where(mask != 0.);
-  count = numberof(dummy);
+  npts = numberof(where(mask != 0.));
 
   // here we compute the gradient of the psf with respect to the phase
-  gradPhase = (-2./size2/count)*(ampliPup*fft(gradPsf*conj(ampliFoc),1,setup=fftws)).im;
+  gradPhase = (-2./size2/npts)*(ampliPup*fft(gradPsf*conj(ampliFoc),1,setup=fftws)).im;
+  //gradPhase = (2.*size2*size2/npts)*(conj(ampliPup)*fft(gradPsf*fft(ampliPup,-1),1,setup=fftws)).im;
+  //  gradPhase = (2./npts)*(conj(ampliPup)*fft(gradPsf*fft(ampliPup,-1),1,setup=fftws)).im;
   // gradphase is nil outside (3:pupd+2,3:pupd+2) so we need to recenter it for the
   // product with the modes
   gradPhase = roll(gradPhase,[size/2-pupd/2-2,size/2-pupd/2-2]);
-  
+
   // here we compute the gradient of the psf with respect to the mode coeffs
   gradCoeff = modesArray(*,)(where(mask),)(+,)*gradPhase(*)(where(mask))(+);
 
@@ -220,7 +212,7 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   if (deltaFoc != []) gradScale = deltaFoc * ((modesArray(*,3)(where(mask)))(+)*\
                                               (gradPhase(*)(where(mask)))(+));
 
-  // here we compute the gradient of the psf with respect to the gird parameters
+  // here we compute the gradient of the psf with respect to the grid parameters
   if (gradG != []) {
     gGrid = array(0.0,4);
     for (cc=1;cc<=4;cc++)     
@@ -383,7 +375,7 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
 
   nact_gems = [17,20,12];
   
-  if (tmodes == 5) {
+  if (tmodes == 4) {
     nxact_dm = [19,22,16];
     pitch_dm = [float(pupd)/nxact_dm(1),float(pupd)/nxact_dm(1),2.*pupd/nxact_dm(1)];
     patchDiam_dm = pitch_dm * nxact_dm;
@@ -396,15 +388,13 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
   for (k=1;k<=nalt;k++) {
     patchDiam = long(pupd+2.*max(abs(xpos,ypos))*4.848e-6*(alt(k))/psize);
     if ((patchDiam % 2) != 0) patchDiam += 1;
-    // taille de la pupille sur le support
-    prepzernike,size,patchDiam,cent,cent; // size = taill tot support, cent=size/2+0.5
+    // taille de la pupille sur le support : size
+    prepzernike,size,patchDiam,cent,cent;
     if( tmodes == 0 ) {   
       if (k == 1) {
-        //selz = _(4,2,3,4+indgen(nzer(k)));
         for (i=1;i<=nzer(k);i++) {
           cpt ++;
           def(,,cpt) = zernike(i+1);
-          //def(,,cpt) = zernike(selz(i));
         }
       } else  {
         /*
@@ -424,7 +414,27 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
       }
     }
 
-    if(tmodes == 1) {
+    if( tmodes == 1) {
+      if (k == 1) { // include tt
+        istart = 0;
+        tmp_def = make_diskharmonic(size,patchDiam,nzer(k)+1,xc=cent,yc=cent)(,,2:);
+        foc = zernike(4);
+        // find focus mode
+        ind_foc = wheremax(abs((tmp_def(*,)(where(ipupil),)(+,)*foc(*)(where(ipupil))(+))));
+        tmp = tmp_def(,,3); // putting back focus where it belongs
+        tmp_def(,,3) = tmp_def(,,ind_foc);
+        tmp_def(,,ind_foc) = tmp;
+        tmp = [];
+        def(,,istart+1:nzer(k)+istart) = tmp_def;
+      } else  {
+        // filtering quads
+       tmp_def = make_diskharmonic(size,patchDiam,nzer(k)+5,xc=cent,yc=cent)(,,6:);
+       def(,,istart+1:nzer(k)+istart) = tmp_def;
+      }
+      istart += nzer(k);
+    }
+
+    if(tmodes == 2) {
       pup1 = [];
       if (k==1) {
         foc = zernike(4);
@@ -433,10 +443,8 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
         def(size/2-pupd/2+1:size/2+pupd/2,            \
             size/2-pupd/2+1:size/2+pupd/2,2:nzer(k)) = kl(,,:-1);
         def *= ipupil;
-
         // filtering focus : not working
         //res=def-foc(,,-::nzer(k)-1)(,,+)*(diag((def(*,)(where(ipupil),)(+,)*foc(*)(where(ipupil))(+))))(+,);
-
         tmp = def(,,2:3);
         def(,,1:2) = tmp;
         def(,,3) = foc;
@@ -451,7 +459,7 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
       }
     } 
     
-    if(tmodes == 2) {
+    if(tmodes == 3) {
       // rough mirror model
       // best fit :
       if (mir_params == []) {
@@ -472,36 +480,8 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
       // size = taill tot support, cent=size/2+0.5
     }
     
-    if(tmodes == 3) {
-      nactu = ceil(sqrt(nzer(1)));
-      espaceInterAct = 2./(nactu-1);
-      dmpitch = espaceInterAct*pupd/2.;
-      x0 = (size-pupd+1)/2.-dmpitch; // this seems like a normal initial value
-      y0 = (size-pupd+1)/2.-dmpitch; 
-      // grid model
-      def(,,1) = zernike(4);
-      def(,,2) = zernike(2);
-      def(,,3) = zernike(3);
-      def(,,4:) = prepmirror(size,pupd,nactu,0.09,dmpitch,dmpitch,x0,y0,ipupil,def(,,1:3),&gradG,orthonorm=1);
-    }
 
-    // 1 piston / 2 tt / 3 quadratic / defoc = 5
-    if( tmodes == 4 ) {
-      if (k == 1) { // include tt
-        istart = 0;
-        tmp_def = make_diskharmonic(size,patchDiam,nzer(k)+1,xc=cent,yc=cent)(,,2:);
-        tmp = tmp_def(,,3); // putting back focus where it belongs
-        tmp_def(,,3) = tmp_def(,,4);
-        tmp_def(,,4) = tmp;
-        tmp = [];
-        def(,,istart+1:nzer(k)+istart) = tmp_def;
-      } else  {
-       tmp_def = make_diskharmonic(size,patchDiam,nzer(k)+6,xc=cent,yc=cent)(,,7:);
-       def(,,istart+1:nzer(k)+istart) = tmp_def;
-      }
-      istart += nzer(k);
-    }
-    if( tmodes == 5 ) { // using GeMS DMs
+    if( tmodes == 4 ) { // using GeMS DMs
       //make_pzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
       tmp = make_pzt_dm(size,patchDiam_dm(k),nxact_dm(k),pray_data.cobs,pitch_dm(k),
                         coupl(k),pitchMargin=pitchMarg(k),unitpervolt=unitV(k));
@@ -518,6 +498,20 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
         istart += nzer(k);
       }
     }
+
+    if(tmodes == 5) {
+      nactu = ceil(sqrt(nzer(1)));
+      espaceInterAct = 2./(nactu-1);
+      dmpitch = espaceInterAct*pupd/2.;
+      x0 = (size-pupd+1)/2.-dmpitch; // this seems like a normal initial value
+      y0 = (size-pupd+1)/2.-dmpitch; 
+      // grid model
+      def(,,1) = zernike(4);
+      def(,,2) = zernike(2);
+      def(,,3) = zernike(3);
+      def(,,4:) = prepmirror(size,pupd,nactu,0.09,dmpitch,dmpitch,x0,y0,ipupil,def(,,1:3),&gradG,orthonorm=1);
+    }
+    
   }
 
   pray_data.def = &def;
@@ -704,16 +698,9 @@ func pray_error(param,&gradient,extra)
   
   if (fit_object) {
     gradientObj = array(0.0,3);
-    new_obj = mygauss2(size,size/2+1,size/2+1,params_object(1),params_object(2),1.,params_object(3),0.,grad_obj,deriv=1);
-    norm_obj = sum(new_obj);
-    norm_im = images(,,avg,1)(*)(sum);
-    new_obj /= norm_obj;
-    new_obj *= norm_im;
-    grad_obj /= norm_obj;
-    grad_obj *= norm_im;
+    new_obj = mygauss2(size,size/2+1,size/2+1,1.+params_object(1)^2,1.+params_object(2)^2,params_object(3),0.,0.,grad_obj,deriv=1);
     ftobject = fft(new_obj,1);
   }
-  
   //-----------------------------------------------------------------
   // First dealing with in-focus images
   tmp = coeffs;
@@ -751,12 +738,13 @@ func pray_error(param,&gradient,extra)
     if (fit_starpos) gradientStars(,i) = tmp(1:2);
 
     if (fit_object) {
-      gradientObj(1:2) += grad_obj(*,3:4)(+,)*gradObj(*)(+);
-      gradientObj(3) += grad_obj(*,6)(+)*gradObj(*)(+);
+      gradientObj(1) += 2.*params_object(1)*(grad_obj(,,3)(*)(+)*gradObj(*)(+));
+      gradientObj(2) += 2.*params_object(2)*(grad_obj(,,4)(*)(+)*gradObj(*)(+));
+      gradientObj(3) += (grad_obj(,,5)(*)(+)*gradObj(*)(+));
     }
   }
-  
-  pray_mircube = (*pray_data.mircube)*ipupil;
+
+  pray_mircube = (*pray_data.mircube)*ipupil; // for record phase with no focus
 
   //----------------------------------------------------------------
   //Extra-Focal images (we can introduce as many images as we want)
@@ -812,18 +800,18 @@ func pray_error(param,&gradient,extra)
       if (diff_tt) gradientDiff(,n) += tmp(1:2);
       
       if (fit_object) {
-        gradientObj(1:2) += grad_obj(*,3:4)(+,)*gradObj(*)(+);
-        gradientObj(3) += grad_obj(*,6)(+)*gradObj(*)(+);
+        gradientObj(1) += 2.*params_object(1)*(grad_obj(,,3)(*)(+)*gradObj(*)(+));
+        gradientObj(2) += 2.*params_object(2)*(grad_obj(,,4)(*)(+)*gradObj(*)(+));
+        gradientObj(3) += (grad_obj(,,5)(*)(+)*gradObj(*)(+));
       }
     }
   }
   //----------------------------------------------------------------
-
   gradientModes = gradientModes(*);
   if (fit_starpos) gradientStars = gradientStars(*);
   if (diff_tt) gradientDiff = gradientDiff(*);
   if (dmgrid) gradientGrid = gradientGrid(,sum);
-  gradient = double(_(gradientGrid,gradientObj,gradientScale,gradientDiff,gradientStars,gradientModes));
+  gradient = double(_(gradientGrid,gradientObj,gradientScale,gradientDiff,gradientStars,gradientModes)(*));
   //gradient*=norm;
   
   return double(crit_array(sum));
@@ -915,7 +903,7 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
 
   if (tmodes == []) tmodes = 0;
   
-  if (tmodes==3) dmgrid = 1;
+  if (tmodes==5) dmgrid = 1;
   else dmgrid = 0;
 
   pray_data.nzer    = &nzer;
@@ -983,7 +971,7 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   //-2 because we don't take into account the global tt
   if (diff_tt) pray_param = _(array(0.0f,2*ndefoc),pray_param);
   if (scale) pray_param = _(1.,pray_param);
-  if (fit_object) pray_param = _([2.,2.,0.],pray_param);
+  if (fit_object) pray_param = _([1.,1.,max(object)],pray_param)(*);
   
   // adding parameters for the dm grid model
   if (dmgrid) {
@@ -997,7 +985,6 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
 
   if( numberof(object) == 1 ) ftobject = 1.0f;
   else {
-    if (fit_object) object = mygauss2(size,size/2+1,size/2+1,1.0,1.0,1.,0,0.);
     ftobject=fft(object,1);
   }
 

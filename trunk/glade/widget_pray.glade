@@ -135,11 +135,12 @@
                                       <widget class="GtkComboBox" id="combo_modetype">
                                         <property name="visible">True</property>
                                         <property name="items" translatable="yes">Zernike
+DH
 KL
 Mirror
+GeMS DMs
 Grid
-DH
-GeMS DMs</property>
+</property>
                                         <signal name="changed" handler="on_combo_modetype_changed"/>
                                       </widget>
                                       <packing>
@@ -1989,7 +1990,6 @@ for dispaly and fine analysis</property>
                                     <child>
                                       <widget class="GtkCheckButton" id="check_guess">
                                         <property name="label" translatable="yes">use guess</property>
-                                        <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="receives_default">False</property>
                                         <property name="draw_indicator">True</property>

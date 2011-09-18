@@ -162,7 +162,7 @@ func test3dsimple_full(void)
   tabdefoc = ["200","400","600","800"];
   tabres = array(0.,nsnr,ndefoc,100,2);
   for (i=1;i<=nsnr;i++) {
-    for (j=1;i<=ndefoc;j++) {
+    for (j=1;j<=ndefoc;j++) {
       for (k=1;k<=100;k++) tabres(i,j,k,) = test3dsimple2(i+1,tabdefoc(j));
     }
   }

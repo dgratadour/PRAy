@@ -389,11 +389,11 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
   }
 
   if (modetype == "Zernike") tmodes = 0;
-  if (modetype == "KL") tmodes = 1;
-  if (modetype == "Mirror") tmodes = 2;
-  if (modetype == "Grid") tmodes = 3;
-  if (modetype == "DH") tmodes = 4;
-  if (modetype == "GeMS DMs") tmodes = 5;
+  if (modetype == "DH") tmodes = 1;
+  if (modetype == "KL") tmodes = 2;
+  if (modetype == "Mirror") tmodes = 3;
+  if (modetype == "GeMS DMs") tmodes = 4;
+  if (modetype == "Grid") tmodes = 5;
 
   // geometry init
   dims_data = dimsof(pray_buffer_data);
@@ -548,11 +548,11 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   if (pray_gui) pray_update_zernike_table,array(0.,100),lambda_im,nzer(1);
   
   if (modetype == "Zernike") tmodes = 0;
-  if (modetype == "KL") tmodes = 1;
-  if (modetype == "Mirror") tmodes = 2;
-  if (modetype == "Grid") tmodes = 3;
-  if (modetype == "DH") tmodes = 4;
+  if (modetype == "DH") tmodes = 1;
+  if (modetype == "KL") tmodes = 2;
+  if (modetype == "Mirror") tmodes = 3;
   if (modetype == "GeMS DMs") tmodes = 5;
+  //if (modetype == "Grid") tmodes = 4;
 
   // geometry init
   psf_core = lambda_im*1.e-9/teldiam*206265000.;//en mas
@@ -634,9 +634,8 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   }
   if (fit_object) {
     obj_params    = array(0.0,3);
-    obj_params(1) = 1.2;
-    obj_params(2) = 2.4;
-    obj_params(3) = 0.;
+    obj_params(1) = 2.5;
+    obj_params(2) = 3.7;
   }
   if (pray_gui) pray_update_zernike_table,coeff,lambda_im,nzer(1);
   pyk_pray,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Using the modes coefficients and defoc values printed below");
@@ -645,7 +644,7 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   ntarget = numberof(xpos);
 
   if (fit_object) {
-    object = mygauss2(size,size/2+1,size/2+1,obj_params(1),obj_params(2),1.,obj_params(3),0.);
+    object = mygauss2(size,size/2+1,size/2+1,obj_params(1),obj_params(2),1.,0.,0.);
     object /= sum(object);
     object *= obj_nphe;
   } else {
@@ -772,7 +771,7 @@ func pray_disp_error(ndisp)
   fma;
   
   if (pray_selected_error > pray_ndefoc + 1) {
-    pray_mircube = (*pray_data.mircube)*(*(pray_data.ipupil));
+    //pray_mircube = (*pray_data.mircube)*(*(pray_data.ipupil));
     // then we want to display the phase per layer
     nlayer = pray_selected_error - (pray_ndefoc + 1);
     tmpdiam = (pray_data.pupd + nlayer-1)/2;
