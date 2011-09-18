@@ -149,7 +149,7 @@ func test3dsimple2(snr,defoc)
   write,format="Initial phase rms (nm)  on layer %d : %f\n",2,ref_phase(,,2)(*)(rms)*1.e3;
   write,format="Residual phase rms (nm) on layer %d : %f\n",2,(ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)*1.e3;
 
-  return [(ref_phase(,,1)-tmp(,,1:100)(,,+)*pray_param(1:100)(+))(*)(rms)/ref_phase(,,1)(*)(rms),
+  return [(ref_phase(,,1)-tmp(,,3:100)(,,+)*pray_param(3:100)(+))(*)(rms)/ref_phase(,,1)(*)(rms),
           (ref_phase(,,2)-tmp(,,101:)(,,+)*pray_param(101:)(+))(*)(rms)/ref_phase(,,2)(*)(rms)]
   
 }
