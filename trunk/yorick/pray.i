@@ -7,8 +7,8 @@ require,praytop+"/yorick/pray_utils.i";
 require,praytop+"/yorick/yaodh.i";
 require,praytop+"/yorick/pray_core.i";
 
-require,praytop+"/OptimPack-1.3.2/yorick/lbfgsb.i";
 require,praytop+"/OptimPack-1.3.2/yorick/OptimPack1.i";
+require,praytop+"/OptimPack-1.3.2/yorick/lbfgs.i";
 
 //require,praytop+"/yorick/optimpack-mod.i";
 

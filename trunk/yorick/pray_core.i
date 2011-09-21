@@ -634,7 +634,6 @@ func pray_error(param,&gradient,extra)
   defPup      = *extra.defPup;
   ipupil      = *extra.ipupil;
   pupmap      = *extra.pupmap;
-  if (numberof(pupmap)==1) pupmap = [];
   pupd        = extra.pupd;
   size        = extra.size;
   fftws       = *extra.fft_ws;
@@ -644,6 +643,8 @@ func pray_error(param,&gradient,extra)
   diff_tt     = extra.diff_tt;
   fit_starpos = extra.fit_starpos
   fit_object  = extra.fit_object
+
+  if (numberof(pupmap)==1) pupmap = [];
 
   if (dmgrid) {
     // here we need to recompute the modeArray + gradients
@@ -660,9 +661,12 @@ func pray_error(param,&gradient,extra)
   } else gradG = [];
 
   if (fit_object) {
+    norm_fact=1.;
     params_object = param(1:3);
+    params_object(1:2) /= norm_fact;
     param = param(4:);
   }
+  
   // we deal with scale & diff_tt here
   // we deal with starpos in coeff2psfs (faster)
   if (scale) {
@@ -695,7 +699,6 @@ func pray_error(param,&gradient,extra)
   if (dmgrid) gradientGrid = array(0.0,4,(numberof(deltaFoc)+1)*ntarget);
   if (fit_starpos) gradientStars = array(0.0,2,ntarget);
   if (diff_tt) gradientDiff = array(0.0,2,numberof(deltaFoc));
-  
   if (fit_object) {
     gradientObj = array(0.0,3);
     new_obj = mygauss2(size,size/2+1,size/2+1,1.+params_object(1)^2,1.+params_object(2)^2,params_object(3),0.,0.,grad_obj,deriv=1);
@@ -806,6 +809,9 @@ func pray_error(param,&gradient,extra)
       }
     }
   }
+
+  //gradientObj(1:2) /= norm_fact^2;
+  
   //----------------------------------------------------------------
   gradientModes = gradientModes(*);
   if (fit_starpos) gradientStars = gradientStars(*);
@@ -971,7 +977,7 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   //-2 because we don't take into account the global tt
   if (diff_tt) pray_param = _(array(0.0f,2*ndefoc),pray_param);
   if (scale) pray_param = _(1.,pray_param);
-  if (fit_object) pray_param = _([1.,1.,max(object)],pray_param)(*);
+  if (fit_object>0) pray_param = _([fit_object,fit_object,max(object)/10.],pray_param)(*);
   
   // adding parameters for the dm grid model
   if (dmgrid) {
@@ -1040,7 +1046,7 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
     if (is_void(ndir)) ndir = nmin;
     method_name = swrite(format="Limited Memory BFGS (LBFGS with NDIR=%d)",
                          ndir);
-    pray_ws = op_lbfgsb_setup(nmin, ndir);
+    pray_ws = op_lbfgs_setup(nmin, ndir);
   } else if (min_method >= 1 && min_method <= 15) {
     /* Conjugate gradient. */
     ndir = 2;
@@ -1138,7 +1144,7 @@ func pray_loop(one)
       pray_step = (*pray_ws(3))(22);
   } else {
     if (min_method < 0) {
-      pray_task = op_lbfgsb_next(double(pray_param), pray_f, pray_g, pray_ws);
+      pray_task = op_lbfgs_next(double(pray_param), pray_f, pray_g, pray_ws);
       if (pray_task == 2 || pray_task == 3) ++pray_iter;
       pray_step = -1.0;
     } else {

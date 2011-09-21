@@ -13,93 +13,6 @@
 //              **********************                 //
 //////////////////////////////////////////////////////////
 
-func  pray_center_img(buffer_data, n, &resX0, &resY0)
-/* DOCUMENT pray_center_img(buffer_data)
-   cf func loop_show_OTF(void) in widget_loop.i
-   cf func cropImage(void) in widget_loop.i
-
-   SEE ALSO:
- */
-{
-  souris = 1;
-  
-  winkill, 0;
-  window,pray_wins(1);
-  fma;
-  limits;
-  if ((pray_bg == []) || numberof(pray_bg) != numberof(buffer_data(,,1)))
-    pray_bg = buffer_data(,,1)*0.;
-  ima = buffer_data(,,1)-pray_bg;
-  pli, ima;
-  write,"Click on the spot ...";
-  pltitle,"click on the splot ...";
-  res = mouse(-1,0,"");
-  x0 = long(res(1) + 1);
-  y0 = long(res(2) + 1);
-  if( souris==1 ) {
-    sb = 10;
-    ima = ima(x0-sb:x0+sb,y0-sb:y0+sb );
-    fma; limits; pli, ima;
-    write,"Click on the spot ...";
-    pltitle,"click on the splot ...";
-    res = mouse(-1,0,"");
-    x0 = x0-sb+long(res(1));
-    y0 = y0-sb+long(res(2));
-  } else {
-    sb = 20;
-    ima = ima(x0-sb:x0+sb,y0-sb:y0+sb );
-    fma; limits; pli, ima;
-    // seuillade de l'image a 10% de la  valeur du max
-    maxi = max(ima);
-    ima -= maxi / 10.;
-    nn = where(ima<0);
-    if( is_array(nn) ) {
-      ima(nn)=0;
-    }
-    // tableaux pour le centre de gravite
-    x = indgen(dimsof(ima)(2))(,-:1:dimsof(ima)(3));
-    y = indgen(dimsof(ima)(3))(-:1:dimsof(ima)(2,),);
-    // calcul centre de gravite si image positive
-    w = sum(ima);
-    if(w>0) {
-      x0 = long( sum(ima*x)/sum(ima) + 0.5) + (x0-sb) - 1;
-      y0 = long( sum(ima*y)/sum(ima) + 0.5) + (y0-sb) - 1;
-    } else {
-    }
-  }
-
-
-  // crop image
-  dims = dimsof(buffer_data);
-  ix = dims(2);
-  iy = dims(3);
-  k = n/2;           // half-size of the image
-
-  write,format="Spot is located at %d,%d \n",x0,y0;
-
-  // ?????? putain .. qu'est ce que c'est que ca ? bon je le laisse ....
-  if(!is_void(resX0)) resX0=x0;
-  if(!is_void(resY0)) resY0=y0;
-  
-  tmp = buffer_data( pray_findlim(ix,x0,k) , pray_findlim(iy,y0,k) , ..);
-
-  /*
-  //adding guard band :
-  ddata = dimsof(tmp);
-  dband = 380;
-  // estimated from adonf pupil measurements, see end of pray_core
-  xs = (dband-ddata(2))/2+1;
-  ys = (dband-ddata(3))/2+1;
-  
-  buffer_data = array(0.0f,380,380,ddata(4));
-  buffer_data(xs:xs+ddata(2)-1,ys:ys+ddata(3)-1,) = tmp;
-
-  extern pray_bg;
-  pray_bg = [];
-  */
-  return tmp;
-}
-
 func pray_set_starpos(type,nstars)
 {
   if (type == 0) {
@@ -429,12 +342,14 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
       object(size/2,size/2+1)=obj_nphe/4.;
       object(size/2+1,size/2+1)=obj_nphe/4.;
     } else {
-      object = mygauss2(size,size/2+1,size/2+1,obj_size,obj_size,1.,0,0.);
+      object = mygauss2(size,size/2+1,size/2+1,obj_size,obj_size,max(pray_buffer(,,1)),0,0.);
       object /= sum(object);
       object *= obj_nphe;
     }
   }
 
+  if (fit_object) fit_object = obj_size;
+  
   threshold = 10.^(-thresh);
   
   for (cc=1;cc<=10;cc++)
@@ -633,9 +548,8 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
     //here we don't include it because we just run pray_coeff2psfs
   }
   if (fit_object) {
-    obj_params    = array(0.0,3);
-    obj_params(1) = 2.5;
-    obj_params(2) = 3.7;
+    obj_params = random(2)*4.;
+    obj_params;
   }
   if (pray_gui) pray_update_zernike_table,coeff,lambda_im,nzer(1);
   pyk_pray,swrite(format=cmd_pray+"y_add_comment_txt_nl('%s')","Using the modes coefficients and defoc values printed below");
@@ -644,7 +558,7 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   ntarget = numberof(xpos);
 
   if (fit_object) {
-    object = mygauss2(size,size/2+1,size/2+1,obj_params(1),obj_params(2),1.,0.,0.);
+    object = mygauss2(size,size/2+1,size/2+1,1.+obj_params(1)^2,1.+obj_params(2)^2,1.,0.,0.);
     object /= sum(object);
     object *= obj_nphe;
   } else {

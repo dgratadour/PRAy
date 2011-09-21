@@ -226,7 +226,7 @@ Gaussian
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="invisible_char">&#x2022;</property>
-                                        <property name="adjustment">1 0.10000000000000001 5 0.10000000000000001 1 0</property>
+                                        <property name="adjustment">1 0.10000000000000001 10 0.10000000000000001 1 0</property>
                                         <property name="digits">2</property>
                                       </widget>
                                       <packing>
