@@ -747,7 +747,7 @@ func pray_error(param,&gradient,extra)
     }
   }
 
-  pray_mircube = (*pray_data.mircube)*ipupil; // for record phase with no focus
+  pray_mircube = *pray_data.mircube; // for record phase with no focus
 
   //----------------------------------------------------------------
   //Extra-Focal images (we can introduce as many images as we want)
