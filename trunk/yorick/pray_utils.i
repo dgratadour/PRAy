@@ -380,7 +380,7 @@ func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpu
  *
  */
 {
-  if (orthonorm == []) orthonorm = 0;
+  if (norm == []) norm = 0;
 
   nactu = long(nactu(1));
   pup = defpup;
@@ -405,8 +405,8 @@ func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpu
       r = sqrt(x(i,j)^2 + y(i,j)^2 );
       if( r<1.1 ) {
         k++;
-        xc = x0 + x(i,j)*dmpitchX;
-        yc = y0 + y(i,j)*dmpitchY;
+        xc = x0 - x(i,j)*dmpitchX;
+        yc = y0 - y(i,j)*dmpitchY;
         def(,,k) = mygauss2(size,xc,yc,Ax/2.82843,Ay/2.82843,1.,0.,0.);
       }
     }
@@ -426,6 +426,30 @@ func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpu
   return def;
 }
 
+func prepbasecano(pup,tt,norm=)
+{
+
+  if (norm == []) norm = 0;
+  
+  valids = where(pup);
+  npts = numberof(valids);
+  def = pup(,,-::npts-1)*0.;
+  for (i=1;i<=npts;i++) def(*,i)(valids(i)) = 1;
+
+  if (norm==1) {
+    nmodes = dimsof(def)(4);
+    norm = sum(tt(,,2)^2);
+    
+    for (cc=1;cc<=npts;cc++) {
+      norm_tmp = (sqrt(sum(def(,,cc)^2)/norm))
+        def(,,cc) /= norm_tmp; 
+    }
+  }
+  
+  return def;
+  
+
+}
 func mygauss2(size,xc,yc,fwhmx,fwhmy,a,angle,fond,&grad,deriv=)
 /* DOCUMENT mygauss2(size,xc,yc,fwhmx,fwhmy,a,angle,fond,&grad,deriv=)
 * SEE ALSO:

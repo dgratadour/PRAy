@@ -38,6 +38,8 @@ struct pray_struct
   pointer deltaFoc;
   pointer poffset;
   pointer pupmap;
+  pointer matPass;
+  pointer base_actu;
   float   teldiam;
   float   cobs;
   float   threshold;
@@ -170,7 +172,7 @@ func pray_c_data(&grad_psf,&grad_obj,ft_object=,image=,ft_psf=,variance=,type=,n
   return .5 * sum((HOminusI)^2/variance);
 }
 
-func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pupd,fftws=,deltaFoc=,gradG=,coeffs=)
+func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pupd,fftws=,deltaFoc=,gradG=,coeffs=,canonical=)
 /* DOCUMENT 
  *  
  * grad=pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pupd,fftws=,deltaFoc=)
@@ -206,8 +208,13 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   gradPhase = roll(gradPhase,[size/2-pupd/2-2,size/2-pupd/2-2]);
 
   // here we compute the gradient of the psf with respect to the mode coeffs
-  gradCoeff = modesArray(*,)(where(mask),)(+,)*gradPhase(*)(where(mask))(+);
-
+  if (canonical != []) {
+    tmp = modesArray(*,1:3)(where(mask),)(+,)*gradPhase(*)(where(mask))(+);
+    gradCoeff = ipupil(where(mask))*gradPhase(*)(where(mask));
+    gradCoeff = _(tmp,gradCoeff);
+  } else {
+    gradCoeff = modesArray(*,)(where(mask),)(+,)*gradPhase(*)(where(mask))(+);
+  }
   // here we compute the gradient of the psf with respect to the focus scale factor
   if (deltaFoc != []) gradScale = deltaFoc * ((modesArray(*,3)(where(mask)))(+)*\
                                               (gradPhase(*)(where(mask)))(+));
@@ -223,7 +230,7 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   return _(gGrid,gradScale,gradCoeff);
 }
 
-func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=,pupmap=)
+func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=,pupmap=,canonical=)
 /* DOCUMENT pray_coeff2psfs
  *  
  * psfs = pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,scale=)
@@ -280,7 +287,14 @@ func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=,pupmap=)
         tmp = coeff(istart+1:nzer(i)-2+istart);
       } else tmp2 = def(,,istart+1:nzer(i)+istart);
     } else tmp2 = def(,,istart+1:nzer(i)+istart);
-    mircube(,,i) = float(tmp(+)*tmp2(,,+));
+    
+    if (canonical != []) {
+      tmp3 = float(tmp(1:3)(+)*tmp2(,,1:3)(,,+));
+      tmp3(where(ipupil)) += tmp(4:);
+      mircube(,,i) = float(tmp3);
+    } else mircube(,,i) = float(tmp(+)*tmp2(,,+));
+    
+    //mircube(,,i) = float(tmp(+)*tmp2(,,+));
     istart += nzer(i);
   }
   
@@ -310,7 +324,7 @@ func pray_coeff2psfs(coeff,&ampliPup,&ampliFoc,poffset=,pupmap=)
     tmp = bphase(,,i);
     if (poffset != []) tmp -= poffset;
     if (pupmap != [])
-      msk = ipupil * pupmap;
+      msk = ipupil * sqrt(pupmap+1.e-6);
     else msk = ipupil;
     psfs(,,i) = phase2psf(tmp(_n1:_n2,_n1:_n2),msk(_n1:_n2,_n1:_n2),\
                           size,amp1,amp2,fftws=fftws);
@@ -367,15 +381,27 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
   ipupil = float(make_pupil(size,pupd,xc=cent,yc=cent,cobs=cobs));
   pray_data.ipupil = &ipupil;
 
+  psize = teldiam/pupd;
+
+  if (tmodes == 4) {
+    for (i=1;i<=numberof(nzer);i++) {
+      patchDiam = long(pupd+2.*max(abs(xpos,ypos))*4.848e-6*(alt(i))/psize);
+      puptmp = float(make_pupil(size,patchDiam,xc=cent,yc=cent,cobs=cobs));
+      nzer(i) = long(sum(puptmp));
+    }
+    nzer(1) += 3;
+  }
+
+  pray_data.nzer = &(nzer);
+  
   // Init def
   def = array(float,[3,size,size,nzer(sum)]);
   
-  psize = teldiam/pupd;
   cpt = 0;
 
   nact_gems = [17,20,12];
   
-  if (tmodes == 4) {
+  if (tmodes == 6) {
     nxact_dm = [19,22,16];
     pitch_dm = [float(pupd)/nxact_dm(1),float(pupd)/nxact_dm(1),2.*pupd/nxact_dm(1)];
     patchDiam_dm = pitch_dm * nxact_dm;
@@ -475,13 +501,33 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
       }
       //deftt = [zernike(2),zernike(3),zernike(4)];
       tmp = prepcanamir(size, pupd,ceil(sqrt(nzer(1))),0.2,pxm,pym,x0m,y0m,ipupil);
-      def(,,1:3) = [zernike(2),zernike(3),zernike(4)];
+      def(,,1:3) = [zernike(2)*ipupil,zernike(3)*ipupil,zernike(4)*ipupil];
       def(,,4:nzer(1)) = tmp;
       // size = taill tot support, cent=size/2+0.5
     }
     
+    if(tmodes == 4) {
+      // canonical basis
+      tmp = prepbasecano(ipupil,[zernike(2)*ipupil,zernike(3)*ipupil]);
+      def(,,1:3) = [zernike(2)*ipupil,zernike(3)*ipupil,zernike(4)*ipupil];
+      def(,,4:nzer(1)) = tmp;
+      if (mir_params == []) {
+        pxm = 0.485998;
+        pym = 0.499824;
+        x0m = 0.00156321;
+        y0m = 0.00194297;
+      } else {
+        pxm = mir_params(1);
+        pym = mir_params(2);
+        x0m = mir_params(3);
+        y0m = mir_params(4);
+      }
+      base_actu = prepcanamir(size, pupd,ceil(sqrt(55)),0.2,pxm,pym,x0m,y0m,ipupil);
+      matPass=LUsolve(base_actu(*,)(+,)*base_actu(*,)(+,))(,+)*base_actu(*,)(,+)
+    }
+    
 
-    if( tmodes == 4 ) { // using GeMS DMs
+    if( tmodes == 5 ) { // using GeMS DMs
       //make_pzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
       tmp = make_pzt_dm(size,patchDiam_dm(k),nxact_dm(k),pray_data.cobs,pitch_dm(k),
                         coupl(k),pitchMargin=pitchMarg(k),unitpervolt=unitV(k));
@@ -499,7 +545,7 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
       }
     }
 
-    if(tmodes == 5) {
+    if(tmodes == 6) {
       nactu = ceil(sqrt(nzer(1)));
       espaceInterAct = 2./(nactu-1);
       dmpitch = espaceInterAct*pupd/2.;
@@ -514,8 +560,10 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
     
   }
 
-  pray_data.def = &def;
-  pray_mircube = mircube*0.0f;
+  pray_data.def       = &def;
+  pray_data.matPass   = &matPass;
+  pray_data.base_actu = &base_actu;
+  pray_mircube        = mircube*0.0f;
 
   // Init dmgsXYposcub : useful for get2dPhase
   xref = indgen(_n)-(_n+1)/2.;
@@ -707,7 +755,8 @@ func pray_error(param,&gradient,extra)
   //-----------------------------------------------------------------
   // First dealing with in-focus images
   tmp = coeffs;
-  psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap);
+  if (*pray_data.matPass != []) cano = 1;
+  psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap,canonical=cano);
   // here the psf is centered at (0,0)
   // tmp includes tt coeffs for starpos estimation
 
@@ -726,10 +775,11 @@ func pray_error(param,&gradient,extra)
                   ft_psf=ftPsf,variance=var,type=1,nstar=nstar,fftws=fftws,grad_o=fit_object);
     
     delta = []; // here there is no scale !
-    
+
+    if (*pray_data.matPass != []) cano = 1;
     tmp = pray_gradpsf2param(gradientPsf,gradPhaseOut,defPup(,,,i),ipupil,\
                              ampliPup(,,i),ampliFoc(,,i),pupd,fftws=fftws,\
-                             deltaFoc=delta,gradG=gradG,coeffs=coeffs(4:));
+                             deltaFoc=delta,gradG=gradG,coeffs=coeffs(4:),canonical=cano);
     if (dmgrid) {
       gradientGrid(,i) = tmp(1:4);
       tmp = tmp(5:);
@@ -767,7 +817,8 @@ func pray_error(param,&gradient,extra)
       tmp(2) += coeff_diff(2*n);
     }
        
-    psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap);
+    if (*pray_data.matPass != []) cano = 1;
+    psfs = pray_coeff2psfs(tmp,ampliPup,ampliFoc,poffset=poffset,pupmap=pupmap,canonical=cano);
  
     for (i=1;i<=ntarget;i++) {
       ftPsf = fft(psfs(,,i),1,setup=fftws);
@@ -784,9 +835,10 @@ func pray_error(param,&gradient,extra)
       if (scale != []) delta = deltaFoc(n);
       else delta = [];
       
-      tmp = pray_gradpsf2param(gradientPsf,gradPhaseOut,defPup(,,,i),ipupil,\
+      if (*pray_data.matPass != []) cano = 1;
+      tmp = pray_gradpsf2param(gradientPsf,gradPhaseOut,defPup(,,,i),ipupil, \
                                ampliPup(,,i),ampliFoc(,,i),pupd,fftws=fftws,\
-                               deltaFoc=delta,gradG=gradG,coeffs=coeffs(4:));
+                               deltaFoc=delta,gradG=gradG,coeffs=coeffs(4:),canonical=cano);
       if (dmgrid) {
         gradientGrid(,i+ntarget*n) = tmp(1:4);
         tmp = tmp(5:);
@@ -909,7 +961,7 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
 
   if (tmodes == []) tmodes = 0;
   
-  if (tmodes==5) dmgrid = 1;
+  if (tmodes==6) dmgrid = 1;
   else dmgrid = 0;
 
   pray_data.nzer    = &nzer;
@@ -929,6 +981,8 @@ func pray(images,xpos,ypos,deltaFoc,sigma,object,lambda,nzer=,alt=,teldiam=,cobs
   else
     write,"Done ...";
 
+  nzer = *pray_data.nzer;
+  
   // ... testing the size and content of variance
   if (variance==[]) {
     variance = sigma^2;

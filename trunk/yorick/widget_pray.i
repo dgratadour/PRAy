@@ -75,7 +75,7 @@ func pray_file_load(filename,images=) {
   extern pray_buffer,pray_buffer_data;
   extern pray_im,pray_name,pray_selected_display,pray_selected_star,pray_ndefoc,pray_currerr;
 
-  if (filename != []) pray_buffer_data = fits_read(filename);
+  if (filename != []) pray_buffer_data = fits_read(filename,fh);
   else {
     if (images != []) pray_buffer_data = images;
     else error,"nothing to do !";
@@ -108,7 +108,16 @@ func pray_file_load(filename,images=) {
     // checking the number of defoc positions
     pray_ndefoc = dims(4)-1;
     pyk_pray,swrite(format=cmd_pray+"glade.get_widget('spin_defocpos').set_value(%d)",pray_ndefoc);
-
+    if (fh != []) {
+      test_styc = fits_get(fh,"STYC");
+      if (test_styc != []) {
+        def = fits_get(fh,"DEFOC");
+        for (cc=1;cc<=pray_ndefoc/2;cc++) {
+          pyk_pray,swrite(format=cmd_pray+"glade.get_widget('defoc%d').set_text('%d')",2*cc-1,cc*def);
+          pyk_pray,swrite(format=cmd_pray+"glade.get_widget('defoc%d').set_text('%d')",2*cc,-cc*def);
+        }
+      }
+    }
     pray_buffer = array(0.,[3,dims(2),dims(3),2*pray_ndefoc+2]);
     pray_buffer(,,1:pray_ndefoc+1) = pray_buffer_data;
     pray_im = array(0.,[3,dims(2),dims(2),2]);
@@ -305,8 +314,9 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
   if (modetype == "DH") tmodes = 1;
   if (modetype == "KL") tmodes = 2;
   if (modetype == "Mirror") tmodes = 3;
-  if (modetype == "GeMS DMs") tmodes = 4;
-  if (modetype == "Grid") tmodes = 5;
+  if (modetype == "Canonical") tmodes = 4;
+  if (modetype == "GeMS DMs") tmodes = 5;
+  if (modetype == "Grid") tmodes = 6;
 
   // geometry init
   dims_data = dimsof(pray_buffer_data);
@@ -318,10 +328,22 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
   
   size = dimsof(images)(2);
   // images noise variance2 init
-  var = (pray_buffer_data(1:boxsize,1:boxsize,1)(*)(rms))^2.;
+  if (nstars > 1) var = (pray_buffer_data(1:boxsize,1:boxsize,,)(*,,)(rms,,))^2.;
+  else var = (pray_buffer_data(1:boxsize,1:boxsize,)(*,)(rms,))^2.;
   //var = (pray_buffer_data(129:129+boxsize,129:129+boxsize,1)(*)(rms))^2.;
 
-  variance2 = clip(images,var,)+var;
+  variance2 = images*0.;
+  if (nstars > 1) {
+    for (kk=1;kk=nstars;kk++) {
+      for (cc=1;cc<=numberof(var);cc++) {
+        variance2(,,cc,kk) = clip(images(,,cc,kk),var(cc),)+var(cc);
+      }
+    }
+  } else {
+    for (cc=1;cc<=numberof(var);cc++) {
+      variance2(,,cc) = clip(images(,,cc),var(cc),)+var(cc);
+    }
+  }
   //variance2 *= 0.5;
 
   if (pray_gui) pray_update_zernike_table,array(0.,nzer(1)),lambda_im,nzer(1);
@@ -518,7 +540,12 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   if (tmodes == 2) {
     modes_coeff = _(0.,0.,gaussdev(53)/2.)(*);
   } else {
-    modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
+    if (tmodes == 4) {
+      nzer = *prat_data.nzer;
+      modes_coeff = [3.*gaussdev(nzer(1))](*);
+    } else {
+      modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
+    }
     //remove tt
     modes_coeff(1:2) = 0.;
     // this are the mode coefficients
