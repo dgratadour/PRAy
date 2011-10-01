@@ -1,0 +1,442 @@
+#!/usr/bin/env python
+
+import gobject
+import gtk
+import gtk.glade
+import os
+import sys
+import time
+import os, fcntl, errno
+
+praytop = os.getenv('PRAYTOP',os.getenv('STYCTOP',0))
+if praytop==0:
+   praytop=os.environ['PRAYTOP']
+
+class widget_pray:
+
+   def get_text(self,wdg):     
+      self.pyk_resume(self.glade.get_widget(wdg).get_text())
+
+   def get_value(self,wdg):      
+      self.pyk_resume(str(self.glade.get_widget(wdg).get_value()))
+
+   def destroy(self, wdg, data=None):
+      self.py2yo('quit')
+      raise SystemExit
+
+   def __init__(self,path=os.path.join(praytop, 'glade'), parent=None,py2yo=None):
+      
+      self.path=path
+      
+      self.gladefile = 'widget_pray.glade'
+      
+      self.glade = gtk.glade.XML(os.path.join(path,self.gladefile), root='top')
+      self.top = self.glade.get_widget('top')
+
+      # handle destroy event
+      if (self.top):
+         self.top.connect('destroy', self.destroy)
+
+      self.glade.signal_autoconnect(self)
+
+      if parent:
+         parent.foreach(parent.remove)
+         parent.add(self.top)
+
+      # Do not open stdin event if not in standalone mode
+      if not py2yo:
+         # set stdin non blocking, this will prevent readline to block
+         fd = sys.stdin.fileno()
+         flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+         fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+         
+         # add stdin to the event loop (yorick input pipe by spawn)
+         gobject.io_add_watch(sys.stdin,gobject.IO_IN|gobject.IO_HUP,self.yo2py,None)
+ 
+      self.glade.get_widget('combo_modetype').set_active(0)
+      self.glade.get_widget('combo_objtype').set_active(1)
+      self.glade.get_widget('check_scale').set_active(0)
+      self.glade.get_widget('winselect_pray_target').hide()
+      self.glade.get_widget('expander1').hide()
+      self.glade.get_widget('check_starpos').hide()
+      self.glade.get_widget('check_starpos').set_active(0)
+      self.glade.get_widget('filt_quads').hide()
+      self.glade.get_widget('filt_quads').set_active(0)
+
+   ######################################################
+   # THIS IS WHERE YOU PLACE METHODS ASSOCIATED TO GLADE
+   ######################################################
+
+   # Example of a button
+
+   #def on_button_test_clicked(self,wdg):
+   #   self.py2yo('hello_yorick')
+
+   #def update_status_test(self,txt):
+   #   self.glade.get_widget('statusbar_test').push(1,txt)
+
+   #def update_txt_test(self,txt):
+   #   self.glade.get_widget('entry_test').set_text(txt)
+
+   def on_drawingarea_pray3_map(self,wdg,*args):
+      drawingarea = self.glade.get_widget('drawingarea_pray1')
+      mwid1 = drawingarea.window.xid;
+      drawingarea = self.glade.get_widget('drawingarea_pray2')
+      mwid2 = drawingarea.window.xid;
+      drawingarea = self.glade.get_widget('drawingarea_pray3')
+      mwid3 = drawingarea.window.xid;
+      self.py2yo('pray_win_init %d %d %d' % (mwid1,mwid2,mwid3))
+
+   def on_combo_modetype_changed(self,wdg):
+      modetype = self.glade.get_widget('combo_modetype').get_active_text()
+      if (modetype == "GeMS DMs"):
+         self.glade.get_widget('spin_layers').set_value(3.0)
+         self.glade.get_widget('nmodes_spin1').set_value(293+3) #add tt and defoc
+         self.glade.get_widget('alt1').set_text("0")
+         self.glade.get_widget('nmodes_spin2').set_value(416)
+         self.glade.get_widget('alt2').set_text("4500")
+         self.glade.get_widget('nmodes_spin3').set_value(208)
+         self.glade.get_widget('alt3').set_text("9000")
+
+   def on_filechooserbutton3_file_set(self,name):
+      wdg = self.glade.get_widget("filechooserbutton3")
+      self.py2yo('pray_file_load "%s"' % wdg.get_filename())
+      
+   def y_add_comment_txt_nl(self,mytxt):
+      wdg = self.glade.get_widget("textview2")
+      wdg.get_buffer().insert(self.glade.get_widget('textview2').get_buffer().get_end_iter(),"\n")
+      wdg.get_buffer().insert(self.glade.get_widget('textview2').get_buffer().get_end_iter(),mytxt)
+
+   def y_add_comment_txt(self,mytxt):
+      wdg = self.glade.get_widget("textview2")
+      wdg.get_buffer().insert(self.glade.get_widget('textview2').get_buffer().get_end_iter(),"\r"+mytxt)
+
+   def on_winselect_pray_disp_changed(self,wdg):
+      val = wdg.get_active()
+      on3d = self.glade.get_widget('check_3d').get_active()
+      if (on3d == 1):
+         nstar = self.glade.get_widget('winselect_pray_target').get_active()
+         self.py2yo('pray_disp_select %d %d' % (val,nstar))
+      else:
+         self.py2yo('pray_disp_select %d' % val)
+
+   def on_winselect_pray_target_changed(self,wdg):
+      val = wdg.get_active()
+      disp = self.glade.get_widget('winselect_pray_disp').get_active()
+      self.py2yo('pray_disp_select %d %d' % (disp,val))
+
+   def on_winselect_error_disp_changed(self,wdg):
+      val = wdg.get_active()
+      self.py2yo('pray_disp_error %d' % val)
+
+   def on_check_disp_toggled(self,wdg):
+      val = self.glade.get_widget('check_disp').get_active()
+      self.py2yo('pyk_set dispok %d' % val)
+
+   def on_combo_starpos_changed(self,wdg):
+      ptype = wdg.get_active()
+      nstars = self.glade.get_widget('spin_stars').get_value()
+      self.py2yo('pray_set_starpos %d %d' % (ptype,nstars))
+
+   def on_getcoeffs_clicked(self,wdg):
+      self.glade.get_widget('getcoeffs').hide()
+      self.glade.get_widget('stop').show()
+
+      ndefoc = self.glade.get_widget('spin_defocpos').get_value()
+      if (ndefoc == 1):
+         deltaFoc_nm = self.glade.get_widget('defoc1').get_text()
+      elif (ndefoc ==2):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text()]   
+      elif (ndefoc ==3):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text()]   
+      elif (ndefoc ==4):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text()]   
+      elif (ndefoc ==5):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text(),self.glade.get_widget('defoc5').get_text()]   
+      elif (ndefoc ==6):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text(),self.glade.get_widget('defoc5').get_text(),self.glade.get_widget('defoc6').get_text()]   
+
+      on3d = self.glade.get_widget('check_3d').get_active()
+      if (on3d == 1):  
+         nstars = self.glade.get_widget('spin_stars').get_value()
+         starposx = []
+         starposy = []
+         for i in range(int(nstars)):
+            starposx.append(self.glade.get_widget('starx%d' % (i+1)).get_text())
+            starposy.append(self.glade.get_widget('stary%d' % (i+1)).get_text())
+         nlayers = self.glade.get_widget('spin_layers').get_value()
+         nmodes = []
+         alts = []
+         for i in range(int(nlayers)):
+            nmodes.append(self.glade.get_widget('nmodes_spin%d' % (i+1)).get_text())
+            alts.append(self.glade.get_widget('alt%d' % (i+1)).get_text())
+      else:
+         starposx = 0.
+         starposy = 0.
+         nmodes = self.glade.get_widget('nmodes_spin').get_value()
+         nlayers = 1
+         alts = 0.
+
+      boxsize = self.glade.get_widget('spin_boxsize').get_value()
+      lambda_im = self.glade.get_widget('spin_imlambda').get_value()
+      pix_size = self.glade.get_widget('spin_pixsize').get_value()
+      obj_type = self.glade.get_widget('combo_objtype').get_active_text()
+      obj_size = self.glade.get_widget('spin_objwidth').get_value()
+      scale = self.glade.get_widget('check_scale').get_active()
+      modetype = self.glade.get_widget('combo_modetype').get_active_text()
+      nbiter = self.glade.get_widget('spin_nit').get_value()
+      thresh = self.glade.get_widget('spin_thresh').get_value()
+      disp = self.glade.get_widget('check_disp').get_active()
+      teldiam = self.glade.get_widget('spin_teldiam').get_value()
+      cobs = self.glade.get_widget('spin_obstruc').get_value()
+      scalar = self.glade.get_widget('check_scalar').get_active()
+      useguess = self.glade.get_widget('check_guess').get_active()
+      diff_tt = self.glade.get_widget('check_difftt').get_active()
+      fit_starpos = self.glade.get_widget('check_starpos').get_active()
+      fit_obj = self.glade.get_widget('fit_object').get_active()
+      if (on3d == 1):
+         self.py2yo('start_pray %d "%s" "%s" %d "%s" "%s" %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d' % (nstars,starposx,starposy,nlayers,alts,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj))
+      else:
+         self.py2yo('start_pray %d %f %f %d %f %d %d %d "%s" %f %f %f %f "%s" %f "%s" %d %d %d %d %d %d %d %d %d' % (1,0.,0.,1,0.,nmodes,boxsize,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,nbiter,disp,thresh,scalar,useguess,scale,diff_tt,fit_starpos,fit_obj))
+
+   def on_create_button_clicked(self,wdg):
+      ndefoc = self.glade.get_widget('spin_defocpos').get_value()
+      if (ndefoc == 1):
+         deltaFoc_nm = self.glade.get_widget('defoc1').get_text()
+      elif (ndefoc ==2):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text()]   
+      elif (ndefoc ==3):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text()]   
+      elif (ndefoc ==4):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text()]   
+      elif (ndefoc ==5):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text(),self.glade.get_widget('defoc5').get_text()]   
+      elif (ndefoc ==6):
+         deltaFoc_nm = [self.glade.get_widget('defoc1').get_text(),self.glade.get_widget('defoc2').get_text(),self.glade.get_widget('defoc3').get_text(),self.glade.get_widget('defoc4').get_text(),self.glade.get_widget('defoc5').get_text(),self.glade.get_widget('defoc6').get_text()]  
+
+      on3d = self.glade.get_widget('check_3d').get_active()
+      if (on3d == 1):  
+         nstars = self.glade.get_widget('spin_stars').get_value()
+         starposx = []
+         starposy = []
+         for i in range(int(nstars)):
+            starposx.append(self.glade.get_widget('starx%d' % (i+1)).get_text())
+            starposy.append(self.glade.get_widget('stary%d' % (i+1)).get_text())
+         nlayers = self.glade.get_widget('spin_layers').get_value()
+         nmodes = []
+         alts = []
+         for i in range(int(nlayers)):
+            nmodes.append(self.glade.get_widget('nmodes_spin%d' % (i+1)).get_text())
+            alts.append(self.glade.get_widget('alt%d' % (i+1)).get_text())
+      else:
+         starposx = 0.
+         starposy = 0.
+         nmodes = self.glade.get_widget('nmodes_spin').get_value()
+         nlayers = 1
+         alts = 0.
+
+      lambda_im = self.glade.get_widget('spin_imlambda').get_value()
+      pix_size = self.glade.get_widget('spin_pixsize').get_value()
+      obj_type = self.glade.get_widget('combo_objtype').get_active_text()
+      obj_size = self.glade.get_widget('spin_objwidth').get_value()
+      modetype = self.glade.get_widget('combo_modetype').get_active_text()
+      size = self.glade.get_widget('spin_datasize').get_value()
+      teldiam = self.glade.get_widget('spin_teldiam').get_value()
+      cobs = self.glade.get_widget('spin_obstruc').get_value()
+      snr = self.glade.get_widget('spin_snr').get_value()
+      diff_tt = self.glade.get_widget('check_difftt').get_active()
+      fit_starpos = self.glade.get_widget('check_starpos').get_active()
+      fit_obj = self.glade.get_widget('fit_object').get_active()
+
+      if (on3d == 1): 
+         self.py2yo('pray_create %d "%s" "%s" %d "%s" "%s" %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d' % (nstars,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj))
+      else:
+         self.py2yo('pray_create %d %f %f %d %f %d %d "%s" %f %f %f %f "%s" %f "%s" %d %f %d %d %d' % (1,starposx,starposy,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,lambda_im,teldiam,cobs,pix_size,obj_type,obj_size,modetype,size,snr,diff_tt,fit_starpos,fit_obj))
+
+
+
+
+   def on_stop_clicked(self,wdg):
+      self.py2yo('pyk_set stop_pray_loop 1')
+
+   def on_button_spydr_clicked(self,wdg):
+      self.py2yo('pray_send_to_spydr')
+
+   def y_on_loop_finished(self):
+      self.glade.get_widget('getcoeffs').show()
+      self.glade.get_widget('stop').hide()
+      
+   def y_get_selected_disp(self,myflag):
+      val = self.glade.get_widget('winselect_pray_disp').get_active_text()
+      if (val=="Data"):
+         self.py2yo('pyk_set pray_selected_display 1')
+      elif (val=="Model"):
+         self.py2yo('pyk_set pray_selected_display 2')
+      elif (val=="2Foc"):
+         self.py2yo('pyk_set pray_selected_display 3')
+      elif (val=="2deFoc"):
+         self.py2yo('pyk_set pray_selected_display 4')
+
+   def y_pray_set_lut(self,value):
+#      if (self.done_init):
+      self.glade.get_widget('colors_spin').set_value(value)
+
+   def on_colors_spin_value_changed(self,wdg):
+      self.glade.get_widget('invert_check').set_active(0)
+      self.py2yo('pray_set_lut %d' % self.glade.get_widget('colors_spin').get_value())
+
+   def on_invert_check_toggled(self,wdg):
+      self.py2yo('pyk_set pray_invertlut %d' % wdg.get_active())
+      self.py2yo('pray_set_lut')
+
+   def pray_set_invertlut(self,value):
+#      if (self.done_init):
+      self.glade.get_widget('invert_check').set_active(value)
+
+   def pray_set_itt(self,value):
+#      if (self.done_init):
+      self.glade.get_widget('itt').set_active(value)
+      
+   def on_itt_changed(self,wdg):
+      itt = wdg.get_active_text()
+      if (itt=="linear"):
+         self.py2yo('pyk_set pray_itt 1')
+      elif (itt=="sqrt"):
+         self.py2yo('pyk_set pray_itt 2')
+      elif (itt=="square"):
+         self.py2yo('pyk_set pray_itt 3')
+      elif (itt=="log"):
+         self.py2yo('pyk_set pray_itt 4')
+      elif (itt=="histeq"):
+         self.py2yo('pyk_set pray_itt 5')
+      self.py2yo('pray_set_lut')
+      self.py2yo('pray_disp')
+
+   def on_cmin_spin_value_changed(self,wdg):
+         self.py2yo('pray_set_cmin %f' % self.glade.get_widget('cmin_spin').get_value())
+
+   def on_cmax_spin_value_changed(self,wdg):
+         self.py2yo('pray_set_cmax %f' % self.glade.get_widget('cmax_spin').get_value())
+
+   def on_zoom_spin_value_changed(self,wdg):
+      self.py2yo('pyk_set pray_zoom %f' % self.glade.get_widget('zoom_spin').get_value())
+
+   def pray_set_cmincmax(self,cmin,cmax,incr):
+      self.glade.get_widget('cmin_spin').set_sensitive(1)
+      self.glade.get_widget('cmin_spin').set_value(cmin)
+      self.glade.get_widget('cmax_spin').set_value(cmax)
+      self.glade.get_widget('cmin_spin').set_increments(incr,incr)
+      self.glade.get_widget('cmax_spin').set_increments(incr,incr)
+
+   def on_unzoom_button_clicked(self,wdg):
+      self.py2yo('pray_unzoom')
+
+   def on_setcuts_button_clicked(self,wdg):
+      self.py2yo('pray_setcuts')
+
+   def on_spin_defocpos_value_changed(self,wdg):
+      val = self.glade.get_widget('spin_defocpos').get_value()
+      for i in range(8):
+         if (i<val):
+            self.glade.get_widget('defoc_box%d' % (i+1)).show()
+         else:
+            self.glade.get_widget('defoc_box%d' % (i+1)).hide()
+
+   def on_spin_layers_value_changed(self,wdg):
+      val = self.glade.get_widget('spin_layers').get_value()
+      for i in range(8):
+         self.glade.get_widget('layer_box%d' % (i+1)).hide()
+      if (val == 1):
+         self.glade.get_widget('layer_vbox').hide()
+      else:
+         self.glade.get_widget('layer_vbox').show()
+         for i in range(int(val)):
+            self.glade.get_widget('layer_box%d' % (i+1)).show()
+
+   def on_spin_stars_value_changed(self,wdg):
+      val = self.glade.get_widget('spin_stars').get_value()
+      for i in range(30):
+         self.glade.get_widget('starpos_box%d' % (i+1)).hide()
+      if (val == 1):
+         self.glade.get_widget('frame_starpos').hide()
+         #self.glade.get_widget('starspos_vboxl').hide()
+         self.glade.get_widget('starspos_vboxm').hide()
+         self.glade.get_widget('starspos_vboxr').hide()
+      else:
+         self.glade.get_widget('frame_starpos').show()
+         #self.glade.get_widget('starspos_vboxl').show()
+         self.glade.get_widget('starspos_vboxm').hide()
+         self.glade.get_widget('starspos_vboxr').hide()
+         if (val > 10):
+            self.glade.get_widget('starspos_vboxm').show()
+         if (val > 20):
+            self.glade.get_widget('starspos_vboxr').show()
+         for i in range(int(val)):
+            self.glade.get_widget('starpos_box%d' % (i+1)).show()
+
+
+   def on_check_3d_toggled(self,wdg):
+      on3d = self.glade.get_widget('check_3d').get_active()
+      if (on3d == 1):
+         self.glade.get_widget('winselect_pray_target').show()
+         self.glade.get_widget('expander1').show()
+         self.glade.get_widget('check_starpos').show()
+         self.glade.get_widget('check_starpos').set_active(0)
+         self.glade.get_widget('filt_quads').show()
+         self.glade.get_widget('filt_quads').set_active(0)
+      else:
+         self.glade.get_widget('winselect_pray_target').hide()
+         self.glade.get_widget('expander1').hide()
+         self.glade.get_widget('check_starpos').hide()
+         self.glade.get_widget('check_starpos').set_active(0)
+         self.glade.get_widget('filt_quads').hide()
+         self.glade.get_widget('filt_quads').set_active(0)
+
+   ###################################################
+   # END OF GLADE RELATED METHOD DEFINITION
+   # minimal wrapper for yorick/python communication
+   ###################################################
+      
+   def yo2py_flush(self):
+      sys.stdin.flush()
+   
+   def py2yo(self,msg):
+      # sends string command to yorick's eval
+      sys.stdout.write(msg+'\n')
+      sys.stdout.flush()
+   
+   def yo2py(self,cb_condition,*args):
+      if cb_condition == gobject.IO_HUP:
+         raise SystemExit, "lost pipe to yorick"
+      # handles string command from yorick
+      # note: individual message needs to end with /n for proper ungarbling
+      while 1:
+         try:
+            msg = sys.stdin.readline()
+            msg = "self."+msg
+            #  self.py2yo('\"%s\"' % msg)
+            try:
+               exec(msg)
+            except Exception, e:
+               sys.stderr.write('yo2py eval: '+str(e)+'\n')
+         except IOError, e:
+            if e.errno == errno.EAGAIN:
+               # the pipe's empty, good
+               break
+            # else bomb out
+            raise SystemExit, "yo2py unexpected IOError:" + str(e)
+         except Exception, ee:
+            raise SystemExit, "yo2py unexpected Exception:" + str(ee)
+      # carefull with the ident here
+      return True
+
+####################################
+# CODE FOR STANDALONE MODE
+####################################
+if __name__ == "__main__":
+   #print 'standalone demo'
+   demo=gtk.Window(type=gtk.WINDOW_TOPLEVEL)
+   demo.connect('destroy', gtk.main_quit)
+   demo.show()
+   w = widget_pray(parent=demo)
+   gtk.main()
