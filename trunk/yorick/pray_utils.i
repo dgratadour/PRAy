@@ -204,7 +204,7 @@ func zernike(zn)
 
 //----------------------------------------------------
 
-func make_pzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
+func makepzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
   /* DOCUMENT function make_pzt_dm2(dm_structure,disp=)
      the influence functions are in microns per volt.
   */
@@ -373,7 +373,7 @@ func prepmirror(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpup
   return def;
 }
 
-func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpup,deftt,norm=)
+func prepcanamir(size,pupd,nactu,fwhm,dmpitchX,dmpitchY,x0,y0,defpup,deftt,norm=)
 /* DOCUMENT 
  * prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpup,deftt)
  * This routine returns the influence functions in the grid model
@@ -388,17 +388,16 @@ func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpu
   x = span(-1,1,nactu)(-:1:nactu,);
   k=0;
 
-  x0       *= patchDiam;
-  y0       *= patchDiam;
+  x0       *= pupd;
+  y0       *= pupd;
   x0       += (size/2+0.5);
   y0       += (size/2+0.5);
-  dmpitchX *= patchDiam;
-  dmpitchY *= patchDiam;
-
+  dmpitchX *= pupd;
+  dmpitchY *= pupd;
+  fwhm     *= pupd;
+  
   def = array(0.0, size, size, nactu*nactu);
   gradG = array(0.0, size, size, nactu*nactu,4);
-  Ax = -log(couplingFact)/((2./(nactu-1))^2);
-  Ay = -log(couplingFact)/((2./(nactu-1))^2);
   
   for(i=1;i<=nactu;i++) {
     for(j=1;j<=nactu;j++) {
@@ -407,7 +406,7 @@ func prepcanamir(size,patchDiam,nactu,couplingFact,dmpitchX,dmpitchY,x0,y0,defpu
         k++;
         xc = x0 - x(i,j)*dmpitchX;
         yc = y0 - y(i,j)*dmpitchY;
-        def(,,k) = mygauss2(size,xc,yc,Ax/2.82843,Ay/2.82843,1.,0.,0.);
+        def(,,k) = mygauss2(size,xc,yc,fwhm,fwhm,1.,0.,0.);
       }
     }
   }
@@ -595,6 +594,26 @@ func pup_model(x,a)
   return mypup;
 }
 
+func act_model(x,a,&grad,deriv=)
+{
+  // x is the indep var (size of the image)
+  // a is the vect of params (10 params)
+
+  xcp    = a(1);
+  ycp    = a(2);
+  fwhmx  = a(3);
+  fwhmy  = a(4);
+  ampl   = a(5);
+  angle  = a(6);
+  fond   = a(7);
+
+  pupil = reform(x(2:),[2,x(1),x(1)]);
+  act = mygauss2(x(1),xcp,ycp,fwhmx,fwhmy,ampl,angle,fond,grad,deriv=1);
+  grad = grad(*,)(where(pupil));
+  
+  return act(where(pupil));
+}
+
 
 func filter_quad(size,dim,centx,centy,basis,foconly=)
 {
@@ -735,6 +754,7 @@ copy to styc
 
 cp ~/yorick/PRAy/trunk/yorick/Makefile /home/brujo/yorick/canary/styc-nono/yorick/.
 cp ~/yorick/PRAy/trunk/yorick/pray_core.i /home/brujo/yorick/canary/styc-nono/yorick/.
+cp ~/yorick/PRAy/trunk/yorick/kl.i /home/brujo/yorick/canary/styc-nono/yorick/.
 cp ~/yorick/PRAy/trunk/yorick/pray.i /home/brujo/yorick/canary/styc-nono/yorick/.
 cp ~/yorick/PRAy/trunk/yorick/pray_utils.c /home/brujo/yorick/canary/styc-nono/yorick/.
 cp ~/yorick/PRAy/trunk/yorick/pray_utils.i /home/brujo/yorick/canary/styc-nono/yorick/.

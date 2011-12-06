@@ -193,7 +193,6 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
   // modesArray contains the Zi in column ...
   // in th tomographic case, modes Array contains the modes, as viewed in the pupil for
   // the specific direction ... need to use getModesInPup before
-  //pupd2 = pud^2;
   size2 = numberof(mask);
   size  = sqrt(size2);
   
@@ -201,8 +200,6 @@ func pray_gradpsf2param(gradPsf,&gradPhase,modesArray,mask,ampliPup,ampliFoc,pup
 
   // here we compute the gradient of the psf with respect to the phase
   gradPhase = (-2./size2/npts)*(ampliPup*fft(gradPsf*conj(ampliFoc),1,setup=fftws)).im;
-  //gradPhase = (2.*size2*size2/npts)*(conj(ampliPup)*fft(gradPsf*fft(ampliPup,-1),1,setup=fftws)).im;
-  //  gradPhase = (2./npts)*(conj(ampliPup)*fft(gradPsf*fft(ampliPup,-1),1,setup=fftws)).im;
   // gradphase is nil outside (3:pupd+2,3:pupd+2) so we need to recenter it for the
   // product with the modes
   gradPhase = roll(gradPhase,[size/2-pupd/2-2,size/2-pupd/2-2]);
@@ -401,7 +398,7 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
 
   nact_gems = [17,20,12];
   
-  if (tmodes == 6) {
+  if (tmodes == 5) {
     nxact_dm = [19,22,16];
     pitch_dm = [float(pupd)/nxact_dm(1),float(pupd)/nxact_dm(1),2.*pupd/nxact_dm(1)];
     patchDiam_dm = pitch_dm * nxact_dm;
@@ -493,14 +490,16 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
         pym = 0.499824;
         x0m = 0.00156321;
         y0m = 0.00194297;
+        fwhm = 0.139986;
       } else {
         pxm = mir_params(1);
         pym = mir_params(2);
         x0m = mir_params(3);
         y0m = mir_params(4);
+        fwhm = mir_params(5);
       }
       //deftt = [zernike(2),zernike(3),zernike(4)];
-      tmp = prepcanamir(size, pupd,ceil(sqrt(nzer(1))),0.2,pxm,pym,x0m,y0m,ipupil);
+      tmp = prepcanamir(size, pupd,ceil(sqrt(nzer(1))),fwhm,pxm,pym,x0m,y0m,ipupil);
       def(,,1:3) = [zernike(2)*ipupil,zernike(3)*ipupil,zernike(4)*ipupil];
       def(,,4:nzer(1)) = tmp;
       // size = taill tot support, cent=size/2+0.5
@@ -528,8 +527,7 @@ func pray_init(xpos,ypos,tmodes=,mir_params=,tiptilt=,poffset=)
     
 
     if( tmodes == 5 ) { // using GeMS DMs
-      //make_pzt_dm(size,dim,nxact,cobs,pitch,coupling,xflip=,yflip=,pitchMargin=,unitpervolt=)
-      tmp = make_pzt_dm(size,patchDiam_dm(k),nxact_dm(k),pray_data.cobs,pitch_dm(k),
+      tmp = makepzt_dm(size,patchDiam_dm(k),nxact_dm(k),pray_data.cobs,pitch_dm(k),
                         coupl(k),pitchMargin=pitchMarg(k),unitpervolt=unitV(k));
       
       if (k==1) {
@@ -1129,7 +1127,7 @@ func pray_loop(one)
   extern pray_data,pray_iter;
   extern pray_param,dispok;
   extern stop_pray_loop;
-  extern elapsed,cpu_start,pray_task,pray_eval,pray_step,pray_wfs,pray_f,pray_g;
+  extern elapsed,cpu_start,pray_task,pray_eval,pray_step,pray_ws,pray_f,pray_g;
 
   if (pray_task == 1) {
     /* Evaluate function. */

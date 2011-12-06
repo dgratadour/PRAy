@@ -323,20 +323,21 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
   if (dims_data(1) == 3) {
     images = array(float,[4,dims_data(2),dims_data(3),1,dims_data(4)]);
     images(,,1,) = pray_buffer_data;
-  } else
-    images = pray_buffer_data;
+  } else images = pray_buffer_data;
   
   size = dimsof(images)(2);
   // images noise variance2 init
   if (nstars > 1) var = (pray_buffer_data(1:boxsize,1:boxsize,,)(*,,)(rms,,))^2.;
   else var = (pray_buffer_data(1:boxsize,1:boxsize,)(*,)(rms,))^2.;
   //var = (pray_buffer_data(129:129+boxsize,129:129+boxsize,1)(*)(rms))^2.;
-
-  variance2 = images*0.;
+  variance2 = images;
   if (nstars > 1) {
-    for (kk=1;kk=nstars;kk++) {
-      for (cc=1;cc<=numberof(var);cc++) {
-        variance2(,,cc,kk) = clip(images(,,cc,kk),var(cc),)+var(cc);
+    for (kk=1;kk<=nstars;kk++) {
+      for (cc=1;cc<=dimsof(var)(3);cc++) {
+        tmp = variance2(,,kk,cc);
+        pts = where(tmp < var(kk,cc));
+        if (numberof(pts) > 0) tmp(pts) = var(kk,cc);
+        variance2(,,kk,cc) = tmp;
       }
     }
   } else {
@@ -345,7 +346,6 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
     }
   }
   //variance2 *= 0.5;
-
   if (pray_gui) pray_update_zernike_table,array(0.,nzer(1)),lambda_im,nzer(1);
 
   psf_core = lambda_im*1.e-9/teldiam*206265000.;//en mas
@@ -402,16 +402,16 @@ func start_pray(nstars,targetx,targety,nlayers,alts,nmodes,boxsize,ndefoc,deltaF
   } else pupp = [];
 
   if (mir_params != "0") {
-    dx=strtok(mir_params,"'",2*4);
-    mirp = array(float,4);
-    for (rr=1;rr<=4;rr++) {
+    dx=strtok(mir_params,"'",2*5);
+    mirp = array(float,5);
+    for (rr=1;rr<=5;rr++) {
       sread,dx(2*rr),mirp(rr);
     }    
   } else mirp = [];
 
   if (scalar) res = pray(images,xpos,ypos,deltaFoc,sqrt(var),object,lambda_im,nzer=nzer,alt=alt,
                          teldiam=teldiam,cobs=cobs,osampl=os,nbiter=nbiter,tmodes=tmodes,tiptilt=tiptilt,
-                         threshold=threshold,disp=disp,guess=myguess,scale=scale,diff_tt=diff_tt,
+                         threshold=threshold,disp=disp,variance=variance2,guess=myguess,scale=scale,diff_tt=diff_tt,
                          fit_starpos=fit_starpos,fit_object=fit_object,script=script,pup_params=pupp,mir_params=mirp);
   else {
     res = pray(images,xpos,ypos,deltaFoc,sqrt(var),object,lambda_im,nzer=nzer,alt=alt,
@@ -527,9 +527,9 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
   pray_data.fit_object  = fit_object;
     
   if (mir_params != "0") {
-    dx=strtok(mir_params,"'",2*4);
-    mirp = array(float,4);
-    for (rr=1;rr<=4;rr++) {
+    dx=strtok(mir_params,"'",2*5);
+    mirp = array(float,5);
+    for (rr=1;rr<=5;rr++) {
       sread,dx(2*rr),mirp(rr);
     }    
   } else mirp = [];
@@ -544,13 +544,19 @@ func pray_create(nstars,targetx,targety,nlayers,alts,nmodes,ndefoc,deltaFoc_nm,l
       nzer = *prat_data.nzer;
       modes_coeff = [3.*gaussdev(nzer(1))](*);
     } else {
-      modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
+      if (tmodes == 5) {
+        nzer = *pray_data.nzer;
+        modes_coeff = [gaussdev(nzer(1))](*);
+      } else {
+        modes_coeff = [7.*gaussdev(nzer(1)-1)/(indgen(nzer(1)-1)^2)](*);
+      }
     }
     //remove tt
     modes_coeff(1:2) = 0.;
     // this are the mode coefficients
     if (nlayers > 1)
-      for (i=2;i<=nlayers;i++) modes_coeff=_(modes_coeff,7.*gaussdev(nzer(i))/((indgen(nzer(i))+5)^2))(*);
+      if (tmodes == 5) modes_coeff=0.3*_(modes_coeff,gaussdev(nzer(2:)(sum)))(*);
+      else for (i=2;i<=nlayers;i++) modes_coeff=_(modes_coeff,7.*gaussdev(nzer(i))/((indgen(nzer(i))+5)^2))(*);
     modes_coeff = modes_coeff(*);
   }
   

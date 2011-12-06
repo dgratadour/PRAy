@@ -208,7 +208,7 @@ class widget_pray:
       mir_map = self.glade.get_widget('mir_map').get_active()
       if (mir_map == 1):  
          mir_params = []
-         for i in range(4):
+         for i in range(5):
             mir_params.append(self.glade.get_widget('mpars%d' % (i+1)).get_text())
       else:
          mir_params = "0"
@@ -278,7 +278,7 @@ class widget_pray:
       mir_map = self.glade.get_widget('mir_map').get_active()
       if (mir_map == 1):  
          mir_params = []
-         for i in range(4):
+         for i in range(5):
             mir_params.append(self.glade.get_widget('mpars%d' % (i+1)).get_text())
       else:
          mir_params = "0"

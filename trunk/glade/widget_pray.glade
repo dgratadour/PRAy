@@ -2346,7 +2346,7 @@ for dispaly and fine analysis</property>
                                                 <child>
                                                   <widget class="GtkLabel" id="label116">
                                                     <property name="visible">True</property>
-                                                    <property name="label" translatable="yes">  x0  </property>
+                                                    <property name="label" translatable="yes">  x0    </property>
                                                   </widget>
                                                   <packing>
                                                     <property name="expand">False</property>
@@ -2375,7 +2375,7 @@ for dispaly and fine analysis</property>
                                                 <child>
                                                   <widget class="GtkLabel" id="label117">
                                                     <property name="visible">True</property>
-                                                    <property name="label" translatable="yes">  y0  </property>
+                                                    <property name="label" translatable="yes">  y0    </property>
                                                   </widget>
                                                   <packing>
                                                     <property name="expand">False</property>
@@ -2415,7 +2415,33 @@ for dispaly and fine analysis</property>
                                   </packing>
                                 </child>
                                 <child>
-                                  <placeholder/>
+                                  <widget class="GtkHBox" id="hbox50">
+                                    <property name="visible">True</property>
+                                    <child>
+                                      <widget class="GtkLabel" id="label118">
+                                        <property name="visible">True</property>
+                                        <property name="label" translatable="yes">fwhm </property>
+                                      </widget>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="position">0</property>
+                                      </packing>
+                                    </child>
+                                    <child>
+                                      <widget class="GtkEntry" id="mpars5">
+                                        <property name="width_request">40</property>
+                                        <property name="visible">True</property>
+                                        <property name="can_focus">True</property>
+                                        <property name="invisible_char">&#x25CF;</property>
+                                      </widget>
+                                      <packing>
+                                        <property name="position">1</property>
+                                      </packing>
+                                    </child>
+                                  </widget>
+                                  <packing>
+                                    <property name="position">1</property>
+                                  </packing>
                                 </child>
                                 <child>
                                   <placeholder/>
